@@ -1,0 +1,90 @@
+name: challsmith
+
+services:
+  ctfd:
+    build: ./ctfd
+    image: challsmith/ctfd:3.8.9-cm0.10.1
+    restart: unless-stopped
+    env_file: ../challsmith.env
+    ports:
+      - 127.0.0.1:8000:8000
+    environment:
+      DATABASE_URL: mysql+pymysql://ctfd:${CTFD_DB_PASSWORD}@ctfd-db/ctfd
+      REDIS_URL: redis://ctfd-redis:6379
+      SECRET_KEY: ${CTFD_SECRET_KEY}
+      PLUGIN_SETTINGS_CM_API_URL: http://chall-manager:8080
+      PLUGIN_SETTINGS_CM_MANA_TOTAL: ${CM_MANA_TOTAL:-5}
+    volumes:
+      - ctfd-uploads:/var/uploads
+    depends_on:
+      - ctfd-db
+      - ctfd-redis
+      - chall-manager
+    healthcheck:
+      test: python3 -c 'import requests; requests.get("http://localhost:8000")'
+      interval: 10s
+      retries: 3
+      timeout: 10s
+
+  ctfd-db:
+    image: mariadb:12.3
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${CTFD_DB_PASSWORD}
+      MARIADB_DATABASE: ctfd
+      MARIADB_USER: ctfd
+      MARIADB_PASSWORD: ${CTFD_DB_PASSWORD}
+    volumes:
+      - ctfd-db:/var/lib/mysql
+
+  ctfd-redis:
+    image: redis:8.10-alpine
+    restart: unless-stopped
+
+  ctfd-setup:
+    image: ctferio/ctfd-setup:v1.8.6
+    restart: "no"
+    environment:
+      URL: http://ctfd:8000
+      FILE: /ctfd-setup.yaml
+    volumes:
+      - ./ctfd-setup.yaml:/ctfd-setup.yaml:ro
+    depends_on:
+      ctfd:
+        condition: service_healthy
+
+  chall-manager:
+    image: ctferio/chall-manager:v0.6.7
+    restart: unless-stopped
+    environment:
+      OCI_INSECURE: "true"
+      DIR: /var/lib/chall-manager
+      PULUMI_HOME: /var/lib/pulumi
+    volumes:
+      - cm-state:/var/lib/chall-manager
+      - cm-pulumi:/var/lib/pulumi
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  chall-manager-janitor:
+    image: ctferio/chall-manager-janitor:v0.6.7
+    restart: unless-stopped
+    environment:
+      URL: chall-manager:8080
+      TICKER: 1m
+    depends_on:
+      - chall-manager
+
+  registry:
+    image: registry:3.1
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:5000:5000
+    volumes:
+      - registry:/var/lib/registry
+
+volumes:
+  ctfd-uploads:
+  ctfd-db:
+  cm-state:
+  cm-pulumi:
+  registry:
