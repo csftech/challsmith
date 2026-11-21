@@ -15,6 +15,6 @@ CTFD_ADMIN_NAME=$(sed -n 's/^CTFD_ADMIN_NAME=//p' "$envfile")
 CTFD_ADMIN_PASSWORD=$(sed -n 's/^CTFD_ADMIN_PASSWORD=//p' "$envfile")
 export CTFD_ADMIN_NAME CTFD_ADMIN_PASSWORD
 
-docker run --rm --network host -e CTFD_ADMIN_NAME -e CTFD_ADMIN_PASSWORD \
+docker run --rm --network host -e CTFD_ADMIN_NAME -e CTFD_ADMIN_PASSWORD -e PIP_DISABLE_PIP_VERSION_CHECK=1 \
   -v "$repo/tests/e2e:/t" -w /t python:3.15-alpine \
   sh -c "pip install -q --root-user-action=ignore -r requirements.txt && pytest -v -p no:cacheprovider $*"
