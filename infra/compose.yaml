@@ -5,7 +5,6 @@ services:
     build: ./ctfd
     image: challsmith/ctfd:3.8.9-cm0.10.1
     restart: unless-stopped
-    env_file: ../challsmith.env
     ports:
       - 127.0.0.1:8000:8000
     environment:
@@ -17,9 +16,12 @@ services:
     volumes:
       - ctfd-uploads:/var/uploads
     depends_on:
-      - ctfd-db
-      - ctfd-redis
-      - chall-manager
+      ctfd-db:
+        condition: service_healthy
+      ctfd-redis:
+        condition: service_started
+      chall-manager:
+        condition: service_started
     healthcheck:
       test: python3 -c 'import requests; requests.get("http://localhost:8000")'
       interval: 10s
@@ -27,7 +29,7 @@ services:
       timeout: 10s
 
   ctfd-db:
-    image: mariadb:12.3
+    image: mariadb:11.8
     restart: unless-stopped
     environment:
       MARIADB_ROOT_PASSWORD: ${CTFD_DB_PASSWORD}
@@ -36,6 +38,10 @@ services:
       MARIADB_PASSWORD: ${CTFD_DB_PASSWORD}
     volumes:
       - ctfd-db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      retries: 20
 
   ctfd-redis:
     image: redis:8.10-alpine
