@@ -1,5 +1,7 @@
 # challsmith 第 1 部分：基礎設施與 scenario 實作計畫
 
+> **注意：** 實作已依執行紀錄（execution ledger）的裁定偏離本計畫，包括：元件改用最新版本與 alpine image、MariaDB 改為 11.8、移除 `env_file`、新增 Task 4b、7b、7c、oras 與 Pulumi docker plugin 改從 GitHub release 下載（不再使用 oras container 與 `ORAS_IMAGE`，也不是 v1.3.0）、proxy 不傳給服務與題目容器，以及新增 `ops` 的防火牆。以下內容保留原樣，未隨實作更新，請以 README 與程式碼為準。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal：** 在一台全新的 Ubuntu 26.04 VM 上，用一個安裝指令架好 CTFd、chall-manager 與本機 registry，並提供 single、multi 兩個通用 scenario，讓手動建立的 `dynamic_iac` 題目能為每位使用者開出獨立的 instance，各自拿到不同的動態 flag。

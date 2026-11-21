@@ -17,12 +17,12 @@ Ubuntu 26.04 VM
       ├─ ctfd                  CTFd 3.8.9 + ctfd-chall-manager plugin v0.10.1, 127.0.0.1:8000
       ├─ ctfd-db / ctfd-redis  mariadb 11.8 / redis 8.10-alpine
       ├─ ctfd-setup            one-shot, creates the CTFd admin and plugin settings
-      ├─ chall-manager         v0.6.7, mounts /var/run/docker.sock, internal network only
+      ├─ chall-manager         v0.6.7, mounts /var/run/docker.sock, no published port
       ├─ chall-manager-janitor removes expired instances every minute
       └─ registry              registry 3.1, 127.0.0.1:5000, challenge images and scenarios
 ```
 
-All published ports bind to 127.0.0.1. Challenge images and scenarios are pushed to `localhost:5000`; chall-manager pulls them as `registry:5000/...`.
+All published ports bind to 127.0.0.1, and a firewall keeps `ops` away from the containers and the registry (see "Security notes"). Challenge images and scenarios are pushed to `localhost:5000`; chall-manager pulls them as `registry:5000/...`.
 
 The two scenarios are written in Go (Go 1.27, pulumi-docker v5.3.0) and are built and pushed to the registry as OCI artifacts by `install.sh`:
 
@@ -34,7 +34,7 @@ The two scenarios are written in Go (Go 1.27, pulumi-docker v5.3.0) and are buil
 You need an Ubuntu 26.04 Desktop VM with internet access, directly or through the company proxies.
 
 1. Copy the repository to the VM, then `cp challsmith.env.example challsmith.env` and edit it. The admin name, email and password are required. `CTFD_SECRET_KEY` and `CTFD_DB_PASSWORD` are generated when left empty. `CM_MANA_TOTAL` is the per-user mana limit (default 5).
-2. Run `sudo ./install.sh`. It is safe to re-run. It installs Docker, writes the Docker daemon proxy settings, creates the users `aps` (docker group) and `ops`, copies the repository to `/opt/challsmith`, starts the compose project, builds and pushes the scenarios, and installs Burp Suite Community.
+2. Run `sudo ./install.sh`. It is safe to re-run. It installs Docker, writes the Docker daemon proxy settings, creates the users `aps` (docker group) and `ops` (an existing `ops` is removed from the docker, sudo, adm and lxd groups), installs the `ops` firewall, copies the repository to `/opt/challsmith`, starts the compose project, builds and pushes the scenarios, and installs Burp Suite Community.
 3. Set the passwords: `sudo passwd aps` and `sudo passwd ops`.
 4. Open `http://127.0.0.1:8000` and log in with the admin account from `challsmith.env`.
 
@@ -116,6 +116,14 @@ End-to-end tests run on the installed VM as `aps`. They build and push the image
 tests/e2e/run.sh
 ```
 
+The runner's pip gets its proxy from the `proxies` section of the Docker client config (`~/.docker/config.json`) of `aps`. If you set one there, its `noProxy` must include `localhost` and `127.0.0.1`, otherwise the tests send CTFd traffic to the proxy.
+
+The `ops` isolation check runs as root. It fails if `ops` can connect to any service or instance container, to chall-manager or to the registry, or cannot reach CTFd and the published instance ports:
+
+```
+sudo tests/ops-isolation.sh
+```
+
 ## Known limitations
 
 1. After a VM reboot the instance containers come back, but Docker may assign a new host port (observed 32776 to 32768). CTFd still shows the old connection URL, so the trainee must delete the instance and open a new one.
@@ -138,4 +146,6 @@ The Pulumi logs are in the `cm-pulumi` volume, mounted at `/var/lib/pulumi` in c
 
 - `ops` is not in the docker group. `/opt/challsmith` is mode 750 and `challsmith.env` is 600.
 - chall-manager mounts `docker.sock`, which is root-equivalent on the VM. The VM is meant for throwaway training use only.
-- Every port binds to 127.0.0.1, so nothing on the VM is reachable from the network.
+- Every published port binds to 127.0.0.1, so the services and instances are not reachable from the network.
+- The VM itself can reach the container networks, so `ops` is blocked by an nftables table `inet challsmith_ops` (`/etc/challsmith/ops-firewall.nft`, loaded at boot by `challsmith-ops-firewall.service`). It rejects all `ops` traffic into the Docker bridges (`docker0`, `br-*`, including the per-instance networks) and to the registry port 5000 on loopback. `ops` still reaches CTFd on 127.0.0.1:8000 and the instance ports, which go through Docker's root-owned port proxy. Without this, `ops` could call the unauthenticated chall-manager API and read every instance flag, read the CTFd sessions in redis, or push a scenario to the registry that chall-manager would run with `docker.sock`.
+- The firewall relies on Docker's userland proxy (the default). With `"userland-proxy": false` in `daemon.json`, loopback traffic to published ports is routed into the bridges and `ops` loses CTFd too, so keep the default.

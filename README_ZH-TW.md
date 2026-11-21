@@ -17,12 +17,12 @@ Ubuntu 26.04 VM
       ├─ ctfd                  CTFd 3.8.9 + ctfd-chall-manager plugin v0.10.1，127.0.0.1:8000
       ├─ ctfd-db / ctfd-redis  mariadb 11.8 / redis 8.10-alpine
       ├─ ctfd-setup            一次性，建立 CTFd 管理者與 plugin 設定
-      ├─ chall-manager         v0.6.7，掛載 /var/run/docker.sock，只在內部網路
+      ├─ chall-manager         v0.6.7，掛載 /var/run/docker.sock，不對外發布 port
       ├─ chall-manager-janitor 每分鐘回收逾時的 instance
       └─ registry              registry 3.1，127.0.0.1:5000，存題目 image 與 scenario
 ```
 
-所有對外的 port 都只綁在 127.0.0.1。題目 image 與 scenario 推到 `localhost:5000`，chall-manager 則以 `registry:5000/...` 拉取。
+所有對外的 port 都只綁在 127.0.0.1，另有防火牆擋住 `ops` 連往 container 與 registry（見「安全注意事項」）。題目 image 與 scenario 推到 `localhost:5000`，chall-manager 則以 `registry:5000/...` 拉取。
 
 兩個 scenario 以 Go 撰寫（Go 1.27、pulumi-docker v5.3.0），由 `install.sh` build 並以 OCI artifact 推到 registry：
 
@@ -34,7 +34,7 @@ Ubuntu 26.04 VM
 需要一台 Ubuntu 26.04 Desktop VM，能直接或經由公司 proxy 連上網路。
 
 1. 把 repo 複製到 VM，執行 `cp challsmith.env.example challsmith.env` 後編輯。管理者的名稱、email 與密碼必填。`CTFD_SECRET_KEY` 與 `CTFD_DB_PASSWORD` 留空時會自動產生。`CM_MANA_TOTAL` 是每位使用者的 mana 上限，預設為 5。
-2. 執行 `sudo ./install.sh`，可以重複執行。它會安裝 Docker、寫入 Docker daemon 的 proxy 設定、建立使用者 `aps`（docker 群組）與 `ops`、把 repo 複製到 `/opt/challsmith`、啟動 compose 專案、build 並推送 scenario，最後安裝 Burp Suite Community。
+2. 執行 `sudo ./install.sh`，可以重複執行。它會安裝 Docker、寫入 Docker daemon 的 proxy 設定、建立使用者 `aps`（docker 群組）與 `ops`（已存在的 `ops` 會被移出 docker、sudo、adm 與 lxd 群組）、安裝 `ops` 的防火牆、把 repo 複製到 `/opt/challsmith`、啟動 compose 專案、build 並推送 scenario，最後安裝 Burp Suite Community。
 3. 設定密碼：`sudo passwd aps` 與 `sudo passwd ops`。
 4. 開啟 `http://127.0.0.1:8000`，用 `challsmith.env` 裡的管理者帳號登入。
 
@@ -116,6 +116,14 @@ docker run --rm -v "$PWD/scenarios:/src" -w /src golang:1.27-alpine go test ./..
 tests/e2e/run.sh
 ```
 
+測試程式裡的 pip 會從 `aps` 的 Docker client 設定（`~/.docker/config.json` 的 `proxies` 區段）取得 proxy。如果在那裡設了 proxy，`noProxy` 必須包含 `localhost` 與 `127.0.0.1`，否則測試連 CTFd 的流量會被送到 proxy。
+
+`ops` 隔離檢查以 root 執行。只要 `ops` 連得到任何服務或 instance 的 container、chall-manager 或 registry，或是連不到 CTFd 與 instance 的對外 port，檢查就會失敗：
+
+```
+sudo tests/ops-isolation.sh
+```
+
 ## 已知限制
 
 1. VM 重開機後，instance 的 container 會自動回來，但 Docker 可能分配新的對外 port（實測從 32776 變成 32768）。CTFd 仍顯示舊的連線網址，所以新人必須刪除 instance 再重新開一個。
@@ -138,4 +146,6 @@ Pulumi 的 log 放在 `cm-pulumi` volume，也就是 chall-manager 內的 `/var/
 
 - `ops` 不在 docker 群組，`/opt/challsmith` 的權限是 750，`challsmith.env` 是 600。
 - chall-manager 掛載了 `docker.sock`，等同於這台 VM 的 root 權限，所以這台 VM 只適合拿來做用完即丟的訓練。
-- 所有 port 都只綁在 127.0.0.1，從網路連不到這台 VM 上的任何服務。
+- 所有對外的 port 都只綁在 127.0.0.1，從網路連不到服務與 instance。
+- VM 本身連得到 container 的網路，所以用 nftables 的 `inet challsmith_ops` 表擋住 `ops`（`/etc/challsmith/ops-firewall.nft`，開機時由 `challsmith-ops-firewall.service` 載入）。它拒絕 `ops` 送進 Docker bridge（`docker0`、`br-*`，包含每個 instance 專屬的 network）的所有流量，以及送往 loopback 上 registry port 5000 的流量。`ops` 仍然連得到 127.0.0.1:8000 的 CTFd 與 instance 的 port，因為這些連線經過 Docker 以 root 執行的 port proxy。少了這道防火牆，`ops` 就能呼叫不需登入的 chall-manager API 讀到每個 instance 的 flag、讀取 redis 裡的 CTFd session，或是推一個 scenario 到 registry，讓 chall-manager 帶著 `docker.sock` 執行。
+- 這道防火牆要靠 Docker 預設的 userland proxy 才能運作。如果在 `daemon.json` 設了 `"userland-proxy": false`，loopback 上連往對外 port 的流量會被轉進 bridge，`ops` 連 CTFd 也會被擋，所以請維持預設值。
