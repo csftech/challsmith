@@ -19,6 +19,7 @@
 - 所有發布到主機的 port 都只綁 `127.0.0.1`：CTFd `127.0.0.1:8000`、registry `127.0.0.1:5000`、題目 instance `127.0.0.1:<Docker 隨機分配>`。
 - CTFd 採用 user mode，開放註冊。
 - CTFd 上不建立靜態 flag，flag 只由 scenario 輸出。
+- 開發 VM 的連線方式：`ssh -i ~/.ssh/challsmith_vm -o BatchMode=yes <user>@<dev-vm>（連線資訊在本機 .env）`，已裝 Docker 29.10（`docker-ce`）、Compose v5.8、Go 1.26.8、git、rsync。repo 以 `rsync` 同步到 VM 的 `~/challsmith` 再執行測試。不讀取、不印出 repo 根目錄的 `.env`，它含有 VM 的帳密且已列在 `.gitignore`。不安裝 shellcheck。
 - 版本固定：`ctfd/ctfd:3.8.8`、ctfd-chall-manager `v0.10.1`、`ctferio/chall-manager:v0.6.7`、`ctferio/chall-manager-janitor:v0.6.7`、`ctferio/ctfd-setup:v1.7.1`、`registry:3`、`golang:1.26`。compose 裡每個 image 都寫明 tag。
 - 公司內的 proxy 只有 Ubuntu apt、Docker Hub、git、pip、npm、apk、Go module 與 Burp 下載，安裝流程不能依賴其他外部網站。唯一的例外是 Pulumi docker provider plugin 與 oras image，留給第 3 份計畫處理，這裡只要求能用設定覆寫來源。
 - `additional` 是 string 對 string 的 map，所有數字與 JSON 都以字串傳入。
@@ -283,7 +284,7 @@ runtime:
 3. 用 oras container 推送：`docker run --rm --network host -v <repo>/scenarios/bin/<name>:/work -w /work "${ORAS_IMAGE:-ghcr.io/oras-project/oras:v1.3.0}" push --plain-http localhost:5000/challsmith/scenarios/<name>:<tag> --artifact-type application/vnd.ctfer-io.scenario main:application/vnd.ctfer-io.file Pulumi.yaml:application/vnd.ctfer-io.file`。實作前確認 oras image 的最新穩定 tag 與 `--plain-http` 旗標名稱。
 4. 腳本用 `set -euo pipefail`，可重複執行。
 
-- [ ] **Step 1：寫 `Pulumi.yaml` 與 `push-scenarios.sh`**，執行 `shellcheck scripts/push-scenarios.sh`，Expected：沒有警告。
+- [ ] **Step 1：寫 `Pulumi.yaml` 與 `push-scenarios.sh`**，執行 `bash -n scripts/push-scenarios.sh`，Expected：沒有語法錯誤。不安裝 shellcheck。
 - [ ] **Step 2：在開發 VM 上啟動暫時的 registry 驗證**：`docker run -d --rm -p 127.0.0.1:5000:5000 --name tmp-registry registry:3`，執行腳本，再執行 `curl -s localhost:5000/v2/challsmith/scenarios/single/tags/list`。Expected：`{"name":"challsmith/scenarios/single","tags":["v1"]}`，multi 同理。驗證完停掉暫時的 registry。
 - [ ] **Step 3：Commit**：`feat(scenarios): build and push scenarios with containers`
 
@@ -340,7 +341,7 @@ runtime:
 `sudo ./install.sh` 的步驟，每一步都必須可重複執行：
 1. 檢查以 root 執行、OS 為 Ubuntu 26.04，repo 根目錄有 `challsmith.env`，缺少時印出「先複製 `challsmith.env.example` 並填寫」後結束。
 2. 若設定了 `HTTP_PROXY`／`HTTPS_PROXY`，寫入 `/etc/apt/apt.conf.d/90challsmith-proxy`。
-3. `apt-get install -y docker.io docker-compose-v2 curl gettext-base`。
+3. `apt-get install -y curl gettext-base rsync openssl`。若 `docker` 與 `docker compose` 都已經可以使用（例如開發 VM 已裝 Docker 官方的 `docker-ce` 與 `docker-compose-plugin`），跳過 Docker 安裝。否則 `apt-get install -y docker.io docker-compose-v2`。不要在已裝 `docker-ce` 的機器上安裝 `docker.io`，兩者會衝突。
 4. 寫入 `/etc/docker/daemon.json`：有 `DOCKER_REGISTRY_MIRROR` 時加 `registry-mirrors`。有 proxy 時寫 systemd drop-in `/etc/systemd/system/docker.service.d/http-proxy.conf`，`NO_PROXY` 必須包含 `localhost,127.0.0.1,registry`。重新載入並 `systemctl enable --now docker`。已存在的 `daemon.json` 先備份成 `daemon.json.bak`。
 5. 建立 `aps`（加入 `docker` 群組）與 `ops`（不加入任何額外群組）。兩個帳號已存在時跳過。密碼不在腳本裡設定，結尾提示管理者用 `passwd` 設定。
 6. 用 `rsync` 把 repo 複製到 `/opt/challsmith`，排除 `.git`，擁有者 `aps:aps`，權限 `750`，`challsmith.env` 權限 `600`。
@@ -350,7 +351,7 @@ runtime:
 10. Burp Suite：`/opt/BurpSuiteCommunity` 不存在時，用 `BURP_DOWNLOAD_URL` 下載安裝檔，以 `-q -dir /opt/BurpSuiteCommunity` 靜默安裝，並在 `/usr/share/applications` 建立桌面捷徑。
 11. 最後印出 CTFd 網址 `http://127.0.0.1:8000` 與待辦事項（設定 `aps`、`ops` 密碼）。
 
-- [ ] **Step 1：寫 `install.sh`**，`shellcheck install.sh` 沒有警告。
+- [ ] **Step 1：寫 `install.sh`**，`bash -n install.sh` 沒有語法錯誤。
 - [ ] **Step 2：在開發 VM 上執行** `sudo ./install.sh`。Expected：exit 0，`docker compose -p challsmith ps` 同 Task 6 Step 4，`curl -s localhost:5000/v2/_catalog` 列出兩個 scenario。
 - [ ] **Step 3：驗證帳號與權限**：
 
