@@ -52,8 +52,9 @@ func run(t *testing.T, add map[string]string) (*mocks, string, []string, error) 
 		if err := deploy(&sdk.Request{Ctx: ctx, Config: &sdk.Configuration{Identity: identity, Additional: add}}, resp); err != nil {
 			return err
 		}
-		resp.ConnectionInfo.ApplyT(func(s string) string { conn = s; return s })
-		resp.Flags.ApplyT(func(s []string) []string { flags = s; return s })
+		// exported so RunErr waits for the applies before returning
+		ctx.Export("conn", resp.ConnectionInfo.ApplyT(func(s string) string { conn = s; return s }))
+		ctx.Export("flags", resp.Flags.ApplyT(func(s []string) []string { flags = s; return s }))
 		return nil
 	}, pulumi.WithMocks("project", "stack", m))
 	return m, conn, flags, err
