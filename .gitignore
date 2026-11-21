@@ -1,1 +1,6 @@
 .env
+challsmith.env
+infra/ctfd-setup.yaml
+scenarios/bin/
+tests/e2e/.venv/
+__pycache__/
