@@ -29,7 +29,7 @@ fi
 
 # 3. packages (skip Docker if already usable; docker.io conflicts with docker-ce)
 apt-get update -y
-apt-get install -y curl gettext-base rsync openssl
+apt-get install -y curl gettext-base rsync openssl python3
 if command -v docker >/dev/null && docker compose version >/dev/null 2>&1; then
   echo "Docker and compose plugin already present, skipping Docker install."
 else
@@ -42,16 +42,18 @@ install -d /etc/docker /etc/systemd/system/docker.service.d
 # no mirror: leave daemon.json untouched; else merge only registry-mirrors (original kept once)
 if [ -n "$DOCKER_REGISTRY_MIRROR" ]; then
   [ -f /etc/docker/daemon.json ] || echo "{}" > /etc/docker/daemon.json
-  cp -n /etc/docker/daemon.json /etc/docker/daemon.json.bak
-  python3 - "$DOCKER_REGISTRY_MIRROR" <<PY && changed=1
+  [ -e /etc/docker/daemon.json.bak ] || cp /etc/docker/daemon.json /etc/docker/daemon.json.bak
+  rc=0
+  python3 - "$DOCKER_REGISTRY_MIRROR" <<PY || rc=$?
 import json, sys
 p = "/etc/docker/daemon.json"
 d = json.load(open(p))
 if d.get("registry-mirrors") == [sys.argv[1]]:
-    sys.exit(1)
+    sys.exit(3)
 d["registry-mirrors"] = [sys.argv[1]]
 json.dump(d, open(p, "w"), indent=2)
 PY
+  case $rc in 0) changed=1 ;; 3) ;; *) echo "Cannot merge /etc/docker/daemon.json (invalid JSON?), aborting." >&2; exit 1 ;; esac
 fi
 dropin=/etc/systemd/system/docker.service.d/http-proxy.conf
 if [ -n "$HTTP_PROXY$HTTPS_PROXY" ]; then
