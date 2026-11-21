@@ -133,7 +133,7 @@ fetch_verified() {
     *)
       [ -f "$src" ] || { echo "Local file not found: $src" >&2; exit 1; }
       cp "$src" "$out"
-      if [ -n "$localsums" ]; then cp "$localsums" "$sf"; else sf=; echo "WARNING: no checksum file for local $asset, skipping sha256 verification." >&2; fi ;;
+      if [ -n "$localsums" ]; then cp "$localsums" "$sf"; else sf=; echo "WARNING: no checksum file for local $asset, skipping checksum verification." >&2; fi ;;
   esac
   if [ -n "$sf" ]; then
     want="$(awk -v f="$asset" '{n=$2; sub(/^[.][/]/,"",n)} n==f {print $1}' "$sf")"
@@ -180,11 +180,9 @@ sudo -u aps -H env GOPROXY="${GOPROXY:-}" ORAS_BIN="$ORAS_BIN" \
 BURP=/opt/BurpSuiteCommunity
 if [ ! -e "$BURP" ]; then
   url="${BURP_DOWNLOAD_URL:-https://portswigger.net/burp/releases/download?product=community&type=Linux}"
-  tmp="$(mktemp -d)"
   curl -fsSL -o "$tmp/burp.sh" "$url"
   chmod +x "$tmp/burp.sh"
   "$tmp/burp.sh" -q -dir "$BURP"
-  rm -rf "$tmp"
 fi
 cat > /usr/share/applications/burpsuite-community.desktop <<DESK
 [Desktop Entry]
