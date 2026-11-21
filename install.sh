@@ -114,7 +114,66 @@ for _ in $(seq 60); do
   sleep 2
 done
 curl -fsS --noproxy '*' -o /dev/null http://127.0.0.1:5000/v2/ || { echo "Registry did not come up" >&2; exit 1; }
-sudo -u aps -H env GOPROXY="${GOPROXY:-}" ${ORAS_IMAGE:+ORAS_IMAGE="$ORAS_IMAGE"} \
+
+# 9b. GitHub release artifacts (checksum-verified; oras: sha256, pulumi-docker: SHA-1): Pulumi docker plugin and oras.
+# pulumi-docker version comes from scenarios/go.mod; the oras version is defined here only.
+ORAS_VERSION=1.4.0
+PULUMI_DOCKER_VERSION="$(sed -n 's|.*pulumi-docker/sdk/v5 v||p' "$DEST/scenarios/go.mod" | head -n1)"
+[ -n "$PULUMI_DOCKER_VERSION" ] || { echo "Cannot read pulumi-docker version from scenarios/go.mod" >&2; exit 1; }
+: "${PULUMI_DOCKER_PLUGIN:=}" "${PULUMI_DOCKER_CHECKSUMS:=}" "${ORAS_TARBALL:=}" "${ORAS_CHECKSUMS:=}"
+dc() { sudo -u aps -H docker compose --env-file "$ENVF" -f "$DEST/infra/compose.yaml" "$@"; }
+
+# fetch_verified <source url|path> <asset name> <checksums name> <local checksums file|""> <out file>
+fetch_verified() {
+  local src=$1 asset=$2 sums=$3 localsums=$4 out=$5 sf="$5.sums" want got
+  case "$src" in
+    http://*|https://*)
+      curl -fL --retry 3 -o "$out" "$src" || { echo "Download failed: $src" >&2; exit 1; }
+      curl -fL --retry 3 -o "$sf" "${src%/*}/$sums" || { echo "Checksum download failed: ${src%/*}/$sums" >&2; exit 1; } ;;
+    *)
+      [ -f "$src" ] || { echo "Local file not found: $src" >&2; exit 1; }
+      cp "$src" "$out"
+      if [ -n "$localsums" ]; then cp "$localsums" "$sf"; else sf=; echo "WARNING: no checksum file for local $asset, skipping sha256 verification." >&2; fi ;;
+  esac
+  if [ -n "$sf" ]; then
+    want="$(awk -v f="$asset" '{n=$2; sub(/^[.][/]/,"",n)} n==f {print $1}' "$sf")"
+    case ${#want} in 40) got="$(sha1sum "$out" | cut -d' ' -f1)" ;; *) got="$(sha256sum "$out" | cut -d' ' -f1)" ;; esac  # pulumi-docker publishes SHA-1 only
+    [ -n "$want" ] && [ "$want" = "$got" ] || { echo "Checksum mismatch for $asset (expected '${want:-none}', got $got), aborting." >&2; exit 1; }
+  fi
+  chmod 644 "$out"
+}
+
+tmp="$(mktemp -d)"; chmod 755 "$tmp"; trap 'rm -rf "$tmp"' EXIT
+
+# pulumi docker plugin, installed into chall-manager's Pulumi home (volume cm-pulumi)
+if dc exec -T chall-manager pulumi plugin ls 2>/dev/null | awk -v v="$PULUMI_DOCKER_VERSION" '$1=="docker" && $2=="resource" && $3==v {f=1} END {exit !f}'; then
+  echo "Pulumi docker plugin $PULUMI_DOCKER_VERSION already installed, skipping."
+else
+  asset="pulumi-resource-docker-v$PULUMI_DOCKER_VERSION-linux-amd64.tar.gz"
+  fetch_verified "${PULUMI_DOCKER_PLUGIN:-https://github.com/pulumi/pulumi-docker/releases/download/v$PULUMI_DOCKER_VERSION/$asset}" \
+    "$asset" "pulumi-docker_${PULUMI_DOCKER_VERSION}_checksums.txt" "$PULUMI_DOCKER_CHECKSUMS" "$tmp/$asset"
+  dc cp "$tmp/$asset" chall-manager:/tmp/plugin.tar.gz
+  dc exec -T chall-manager pulumi plugin install resource docker "v$PULUMI_DOCKER_VERSION" --file /tmp/plugin.tar.gz \
+    || { echo "Pulumi docker plugin install failed" >&2; exit 1; }
+  dc exec -T chall-manager rm -f /tmp/plugin.tar.gz
+  echo "Pulumi docker plugin $PULUMI_DOCKER_VERSION installed."
+fi
+
+# oras binary
+ORAS_BIN="$DEST/bin/oras"
+if [ -x "$ORAS_BIN" ] && "$ORAS_BIN" version 2>/dev/null | grep -qE "^Version: +$ORAS_VERSION$"; then
+  echo "oras $ORAS_VERSION already installed, skipping."
+else
+  asset="oras_${ORAS_VERSION}_linux_amd64.tar.gz"
+  fetch_verified "${ORAS_TARBALL:-https://github.com/oras-project/oras/releases/download/v$ORAS_VERSION/$asset}" \
+    "$asset" "oras_${ORAS_VERSION}_checksums.txt" "$ORAS_CHECKSUMS" "$tmp/$asset"
+  mkdir "$tmp/oras"; tar -xzf "$tmp/$asset" -C "$tmp/oras" oras || { echo "Cannot extract oras from $asset" >&2; exit 1; }
+  install -d -o aps -g aps -m 755 "$DEST/bin"
+  install -o aps -g aps -m 755 "$tmp/oras/oras" "$ORAS_BIN"
+  echo "oras $ORAS_VERSION installed."
+fi
+
+sudo -u aps -H env GOPROXY="${GOPROXY:-}" ORAS_BIN="$ORAS_BIN" \
   "$DEST/scripts/push-scenarios.sh" v1
 
 # 10. Burp Suite Community
