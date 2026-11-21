@@ -1,0 +1,15 @@
+# challsmith: keep the trainee account (ops) away from the service containers, chall-manager and the registry.
+# Loaded by challsmith-ops-firewall.service. Docker never touches this table. Only ops traffic is matched.
+table inet challsmith_ops
+delete table inet challsmith_ops
+
+table inet challsmith_ops {
+  chain output {
+    type filter hook output priority 0; policy accept;
+    # container networks: the compose network and every per-instance network the scenarios create
+    meta skuid "ops" oifname "docker0" reject
+    meta skuid "ops" oifname "br-*" reject
+    # the registry has no auth; a push could replace a scenario that chall-manager runs with docker.sock
+    meta skuid "ops" ip daddr 127.0.0.0/8 tcp dport 5000 reject with tcp reset
+  }
+}

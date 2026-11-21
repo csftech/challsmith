@@ -29,7 +29,7 @@ fi
 
 # 3. packages (skip Docker if already usable; docker.io conflicts with docker-ce)
 apt-get update -y
-apt-get install -y curl gettext-base rsync openssl python3
+apt-get install -y curl gettext-base rsync openssl python3 nftables
 if command -v docker >/dev/null && docker compose version >/dev/null 2>&1; then
   echo "Docker and compose plugin already present, skipping Docker install."
 else
@@ -71,13 +71,28 @@ systemctl enable --now docker
 
 # 5. accounts (no passwords set here)
 getent group docker >/dev/null || groupadd docker
-id aps >/dev/null 2>&1 || useradd -m -s /bin/bash -G docker aps
-id ops >/dev/null 2>&1 || useradd -m -s /bin/bash ops
+id aps >/dev/null 2>&1 || useradd -m -s /bin/bash aps
+usermod -aG docker aps
+if id ops >/dev/null 2>&1; then
+  # an existing ops must not keep privileged groups
+  for g in docker sudo adm lxd; do
+    if id -nG ops | tr ' ' '\n' | grep -qx "$g"; then gpasswd -d ops "$g" >/dev/null; echo "Removed ops from group $g."; fi
+  done
+else
+  useradd -m -s /bin/bash ops
+fi
+
+# 5b. ops firewall: no ops traffic to container networks or the registry (see infra/ops-firewall.nft)
+install -D -m 644 "$SRC/infra/ops-firewall.nft" /etc/challsmith/ops-firewall.nft
+install -m 644 "$SRC/infra/challsmith-ops-firewall.service" /etc/systemd/system/challsmith-ops-firewall.service
+systemctl daemon-reload
+systemctl enable challsmith-ops-firewall.service
+systemctl restart challsmith-ops-firewall.service
 
 # 6. copy repo
 install -d -o aps -g aps -m 750 "$DEST"
 OLD_ENV=/dev/null; [ ! -f "$ENVF" ] || { OLD_ENV="$(mktemp)"; cp "$ENVF" "$OLD_ENV"; }
-rsync -a --exclude=.git --exclude=.env --exclude=.superpowers --exclude=scenarios/bin "$SRC/" "$DEST/"
+rsync -a --chmod=o-rwx --exclude=.git --exclude=.env --exclude=.superpowers --exclude=scenarios/bin "$SRC/" "$DEST/"
 chown -R aps:aps "$DEST"
 chmod 750 "$DEST"
 chmod 600 "$ENVF"
@@ -108,7 +123,13 @@ chown aps:aps "$DEST/infra/ctfd-setup.yaml"
 chmod 600 "$DEST/infra/ctfd-setup.yaml"
 
 # 9. start the stack, wait for the registry, push scenarios
-sudo -u aps -H docker compose --env-file "$ENVF" -f "$DEST/infra/compose.yaml" up -d --build
+dc() { sudo -u aps -H docker compose --env-file "$ENVF" -f "$DEST/infra/compose.yaml" "$@"; }
+dc up -d --build
+# a failed ctfd-setup would leave CTFd's open /setup page for the first visitor to claim admin
+rc=0; dc wait ctfd-setup >/dev/null || rc=$?
+[ "$rc" -eq 0 ] || { echo "ctfd-setup failed (exit $rc), see: docker compose -p challsmith logs ctfd-setup" >&2; exit 1; }
+code="$(curl -s --noproxy '*' -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/setup)"
+[ "$code" = 302 ] || { echo "CTFd /setup returned $code, expected a redirect (CTFd not set up), aborting." >&2; exit 1; }
 for _ in $(seq 60); do
   curl -fsS --noproxy '*' -o /dev/null http://127.0.0.1:5000/v2/ && break
   sleep 2
@@ -121,7 +142,6 @@ ORAS_VERSION=1.4.0
 PULUMI_DOCKER_VERSION="$(sed -n 's|.*pulumi-docker/sdk/v5 v||p' "$DEST/scenarios/go.mod" | head -n1)"
 [ -n "$PULUMI_DOCKER_VERSION" ] || { echo "Cannot read pulumi-docker version from scenarios/go.mod" >&2; exit 1; }
 : "${PULUMI_DOCKER_PLUGIN:=}" "${PULUMI_DOCKER_CHECKSUMS:=}" "${ORAS_TARBALL:=}" "${ORAS_CHECKSUMS:=}"
-dc() { sudo -u aps -H docker compose --env-file "$ENVF" -f "$DEST/infra/compose.yaml" "$@"; }
 
 # fetch_verified <source url|path> <asset name> <checksums name> <local checksums file|""> <out file>
 fetch_verified() {

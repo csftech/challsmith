@@ -13,7 +13,16 @@ x-no-proxy: &no-proxy
 
 services:
   ctfd:
-    build: ./ctfd
+    build:
+      context: ./ctfd
+      # predefined proxy build args: used by RUN (git clone, pip) but not kept in the image
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-}
+        http_proxy: ${HTTP_PROXY:-}
+        https_proxy: ${HTTPS_PROXY:-}
+        no_proxy: ${NO_PROXY:-}
     image: challsmith/ctfd:3.8.9-cm0.10.1
     restart: unless-stopped
     ports:
@@ -35,7 +44,8 @@ services:
       chall-manager:
         condition: service_started
     healthcheck:
-      test: python3 -c 'import requests; requests.get("http://localhost:8000")'
+      test: python3 -c 'import requests; requests.get("http://localhost:8000").raise_for_status()'
+      start_period: 120s
       interval: 10s
       retries: 3
       timeout: 10s
