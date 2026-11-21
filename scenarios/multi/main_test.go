@@ -146,7 +146,7 @@ func TestMultiServiceEnvCannotOverrideFlag(t *testing.T) {
 	m, _, flags, err := run(t, a)
 	require.NoError(t, err)
 	e := envs(containers(m)[0])
-	assert.Equal(t, []string{"FLAG=" + flags[0]}, e)
+	assert.Equal(t, scenario.ContainerEnv(nil, flags[0]), e)
 }
 
 func TestMultiOutputs(t *testing.T) {
@@ -161,4 +161,18 @@ func TestMultiInvalidConfigFails(t *testing.T) {
 	m, _, _, err := run(t, map[string]string{"flag": "x"})
 	require.Error(t, err)
 	assert.Empty(t, m.recs)
+}
+
+func TestMultiServiceEnvCannotSetProxy(t *testing.T) {
+	a := base()
+	a["services"] = `[{"name":"web","image":"w:1","port":80,"entry":true,"env":{"HTTP_PROXY":"http://x:1","http_proxy":"http://x:1"}}]`
+	m, _, _, err := run(t, a)
+	require.NoError(t, err)
+	e := envs(containers(m)[0])
+	assert.Contains(t, e, "HTTP_PROXY=")
+	assert.Contains(t, e, "http_proxy=")
+	for _, k := range []string{"HTTPS_PROXY=", "NO_PROXY=", "ALL_PROXY=", "https_proxy=", "no_proxy=", "all_proxy="} {
+		assert.Contains(t, e, k)
+	}
+	assert.NotContains(t, e, "HTTP_PROXY=http://x:1")
 }

@@ -44,9 +44,11 @@ Ubuntu apt, Docker Hub, pip, npm, apk, Go modules and the GitHub release downloa
 
 | Key | Purpose |
 |---|---|
-| `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` | apt, the Docker daemon, and the GitHub release downloads of the Pulumi plugin and oras. `localhost`, `127.0.0.1` and `registry` are always added to `NO_PROXY`. |
+| `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` | apt, the Docker daemon, the GitHub release downloads of the Pulumi plugin and oras, and the golang build container of the scenarios. `localhost`, `127.0.0.1` and `registry` are always added to `NO_PROXY`. |
 | `DOCKER_REGISTRY_MIRROR` | Docker Hub proxy address, written to `registry-mirrors` in `/etc/docker/daemon.json`. |
 | `GOPROXY` | Go module proxy used when building the scenarios. |
+
+The proxy is never passed to the stack's service containers or to challenge containers (compose sets every proxy variable to empty, and the scenarios do the same for challenge containers), so a challenge instance cannot reach or be steered through the company proxy.
 
 The installer downloads two files from GitHub releases and verifies them against the checksum file published next to them: the Pulumi docker provider plugin (installed into the Pulumi home of chall-manager, volume `cm-pulumi`; pulumi-docker publishes SHA-1) and the oras binary 1.4.0 (SHA-256). With the proxy variables set, these downloads need no further configuration.
 

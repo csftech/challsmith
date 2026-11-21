@@ -32,7 +32,7 @@ func deploy(req *sdk.Request, resp *sdk.Response, opts ...pulumi.ResourceOption)
 	c, err := docker.NewContainer(req.Ctx, "container", &docker.ContainerArgs{
 		Name:    pulumi.String("challenge-" + req.Config.Identity),
 		Image:   img.ImageId,
-		Envs:    pulumi.StringArray{pulumi.String("FLAG=" + flag)},
+		Envs:    pulumi.ToStringArray(scenario.ContainerEnv(nil, flag)),
 		Memory:  pulumi.Int(cfg.MemoryMB),
 		Cpus:    pulumi.String(strconv.FormatFloat(cfg.CPUs, 'f', -1, 64)),
 		Restart: pulumi.String("unless-stopped"),

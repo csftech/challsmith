@@ -44,9 +44,11 @@ Ubuntu apt、Docker Hub、pip、npm、apk、Go module 與 GitHub release 的下�
 
 | 設定 | 用途 |
 |---|---|
-| `HTTP_PROXY`、`HTTPS_PROXY`、`NO_PROXY` | apt、Docker daemon，以及從 GitHub release 下載 Pulumi plugin 與 oras。`localhost`、`127.0.0.1` 與 `registry` 一律會加進 `NO_PROXY`。 |
+| `HTTP_PROXY`、`HTTPS_PROXY`、`NO_PROXY` | apt、Docker daemon、從 GitHub release 下載 Pulumi plugin 與 oras，以及 build scenario 的 golang 容器。`localhost`、`127.0.0.1` 與 `registry` 一律會加進 `NO_PROXY`。 |
 | `DOCKER_REGISTRY_MIRROR` | Docker Hub proxy 位址，寫入 `/etc/docker/daemon.json` 的 `registry-mirrors`。 |
 | `GOPROXY` | build scenario 時使用的 Go module proxy。 |
+
+proxy 絕不會傳給本專案的服務容器或題目容器（compose 把所有 proxy 變數設為空值，scenario 也對題目容器做同樣的事），因此題目 instance 無法連到公司 proxy，也不會被導向 proxy。
 
 安裝程式會從 GitHub release 下載兩個檔案，並用旁邊的 checksum 檔驗證：Pulumi docker provider plugin（裝進 chall-manager 的 Pulumi home，也就是 volume `cm-pulumi`，pulumi-docker 只提供 SHA-1）與 oras 1.4.0（SHA-256）。設好 proxy 變數後，這兩個下載不需要其他設定。
 

@@ -3,7 +3,6 @@ package main
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 
 	sdk "github.com/ctfer-io/chall-manager/sdk"
@@ -42,25 +41,10 @@ func deploy(req *sdk.Request, resp *sdk.Response, opts ...pulumi.ResourceOption)
 			return err
 		}
 
-		env := map[string]string{}
-		for k, v := range s.Env {
-			env[k] = v
-		}
-		env["FLAG"] = flag // set last: service env must not override the flag
-		keys := make([]string, 0, len(env))
-		for k := range env {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		envs := pulumi.StringArray{}
-		for _, k := range keys {
-			envs = append(envs, pulumi.String(k+"="+env[k]))
-		}
-
 		args := &docker.ContainerArgs{
 			Name:    pulumi.String("challenge-" + id + "-" + s.Name),
 			Image:   img.ImageId,
-			Envs:    envs,
+			Envs:    pulumi.ToStringArray(scenario.ContainerEnv(s.Env, flag)),
 			Memory:  pulumi.Int(cfg.MemoryMB),
 			Cpus:    pulumi.String(strconv.FormatFloat(cfg.CPUs, 'f', -1, 64)),
 			Restart: pulumi.String("unless-stopped"),

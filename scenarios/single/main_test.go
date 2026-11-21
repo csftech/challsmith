@@ -94,12 +94,12 @@ func TestSingleCreatesLockedDownContainer(t *testing.T) {
 }
 
 func TestSingleOutputsFlagAndConnectionInfo(t *testing.T) {
-	m, conn, flags, err := run(t, base())
+	_, conn, flags, err := run(t, base())
 	require.NoError(t, err)
 	cfg, _ := scenario.ParseSingle(base())
 	want := scenario.BuildFlag(identity, cfg.Common)
 	require.Equal(t, []string{want}, flags)
-	assert.Contains(t, containers(m)[0].in["envs"].ArrayValue()[0].StringValue(), "FLAG="+want)
+	assert.Contains(t, scenario.ContainerEnv(nil, want), "FLAG="+want)
 	assert.Equal(t, "http://localhost:32768", conn)
 }
 
@@ -115,4 +115,17 @@ func TestSingleInvalidConfigFails(t *testing.T) {
 	m, _, _, err := run(t, map[string]string{"image": "x"})
 	require.Error(t, err)
 	assert.Empty(t, m.recs)
+}
+
+func TestSingleBlanksProxyEnv(t *testing.T) {
+	m, _, flags, err := run(t, base())
+	require.NoError(t, err)
+	var got []string
+	for _, e := range containers(m)[0].in["envs"].ArrayValue() {
+		got = append(got, e.StringValue())
+	}
+	assert.Equal(t, scenario.ContainerEnv(nil, flags[0]), got)
+	for _, k := range []string{"HTTP_PROXY=", "HTTPS_PROXY=", "NO_PROXY=", "ALL_PROXY=", "http_proxy=", "https_proxy=", "no_proxy=", "all_proxy="} {
+		assert.Contains(t, got, k)
+	}
 }

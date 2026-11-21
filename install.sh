@@ -173,7 +173,8 @@ else
   echo "oras $ORAS_VERSION installed."
 fi
 
-sudo -u aps -H env GOPROXY="${GOPROXY:-}" ORAS_BIN="$ORAS_BIN" \
+# The proxy goes only to the golang build container (module download), never to a challenge.
+sudo -u aps -H env GOPROXY="${GOPROXY:-}" HTTP_PROXY="$HTTP_PROXY" HTTPS_PROXY="$HTTPS_PROXY" NO_PROXY="$NO_PROXY_ALL" ORAS_BIN="$ORAS_BIN" \
   "$DEST/scripts/push-scenarios.sh" v1
 
 # 10. Burp Suite Community
