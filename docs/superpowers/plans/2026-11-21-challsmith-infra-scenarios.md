@@ -10,7 +10,7 @@
 
 **Spec：** `docs/superpowers/specs/2026-11-21-challsmith-design.md`（第 3、5、6、9.1 節）
 
-**本計畫不包含：** 出題 web app、發佈前清理、git 與備份（第 2 份計畫），base images repo 與預先包好 Pulumi plugin 的 chall-manager image（第 3 份計畫）。
+**本計畫不包含：** 出題 web app、發佈前清理、git 與備份（第 2 份計畫），base images repo（第 3 份計畫）。
 
 ## Global Constraints
 
@@ -21,7 +21,7 @@
 - CTFd 上不建立靜態 flag，flag 只由 scenario 輸出。
 - 開發 VM 的連線方式：`ssh -i ~/.ssh/challsmith_vm -o BatchMode=yes <user>@<dev-vm>（連線資訊在本機 .env）`，已裝 Docker 29.10（`docker-ce`）、Compose v5.8、Go 1.26.8、git、rsync。Windows 端沒有 rsync，用 `tar --exclude=./.env --exclude=./.git -cf - . | ssh -i ~/.ssh/challsmith_vm <user>@<dev-vm>（連線資訊在本機 .env） 'mkdir -p ~/challsmith && tar -xf - -C ~/challsmith'` 把 repo 同步到 VM 的 `~/challsmith`，再執行測試。不讀取、不印出 repo 根目錄的 `.env`，它含有 VM 的帳密且已列在 `.gitignore`。不安裝 shellcheck。
 - 版本固定：`ctfd/ctfd:3.8.8`、ctfd-chall-manager `v0.10.1`、`ctferio/chall-manager:v0.6.7`、`ctferio/chall-manager-janitor:v0.6.7`、`ctferio/ctfd-setup:v1.7.1`、`registry:3`、`golang:1.26`。compose 裡每個 image 都寫明 tag。
-- 公司內的 proxy 只有 Ubuntu apt、Docker Hub、git、pip、npm、apk、Go module 與 Burp 下載，安裝流程不能依賴其他外部網站。唯一的例外是 Pulumi docker provider plugin 與 oras image，留給第 3 份計畫處理，這裡只要求能用設定覆寫來源。
+- 公司內的 proxy 只有 Ubuntu apt、Docker Hub、git、pip、npm、apk、Go module 與 Burp 下載，安裝流程不能依賴其他外部網站。Pulumi docker provider plugin 由安裝指令從 GitHub release tarball 安裝（Task 7b）。oras image 在 ghcr.io，留給第 3 份計畫處理，這裡只要求能用設定覆寫來源。
 - `additional` 是 string 對 string 的 map，所有數字與 JSON 都以字串傳入。
 - 每個 repo 都要有 `README.md`（英文）與 `README_ZH-TW.md`（繁體中文），內容一致，開頭互相連結。
 - commit 訊息結尾加上 `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`。
