@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build the Go scenarios in a container and push them as OCI artifacts to the local registry.
-# Usage: scripts/push-scenarios.sh [tag]   (env: GOPROXY, HTTP_PROXY, HTTPS_PROXY, NO_PROXY, ORAS_BIN)
+# Usage: scripts/push-scenarios.sh [tag]   (env: GOPROXY, GOSUMDB, HTTP_PROXY, HTTPS_PROXY, NO_PROXY, ORAS_BIN)
 set -euo pipefail
 
 TAG="${1:-v1}"
@@ -17,10 +17,13 @@ if [ -n "${HTTP_PROXY:-}${HTTPS_PROXY:-}" ]; then
   done
 fi
 
+# GOSUMDB is forwarded only when set; GOTOOLCHAIN=local stops Go from downloading a toolchain.
+[ -z "${GOSUMDB:-}" ] || PROXY_ARGS+=(-e "GOSUMDB=$GOSUMDB")
+
 for name in single multi; do
   docker run --rm -u "$(id -u):$(id -g)" -v "$SRC:/src" -w /src \
     -e HOME=/src/bin/.cache -e GOCACHE=/src/bin/.cache/gocache -e GOMODCACHE=/src/bin/.cache/gomod \
-    -e CGO_ENABLED=0 -e GOPROXY "${PROXY_ARGS[@]}" \
+    -e CGO_ENABLED=0 -e GOTOOLCHAIN=local -e GOPROXY "${PROXY_ARGS[@]}" \
     golang:1.27-alpine go build -o "bin/$name/main" "./$name"
 
   cat > "$SRC/bin/$name/Pulumi.yaml" <<YAML

@@ -46,7 +46,10 @@ Ubuntu apt、Docker Hub、pip、npm、apk、Go module 與 GitHub release 的下�
 |---|---|
 | `HTTP_PROXY`、`HTTPS_PROXY`、`NO_PROXY` | apt、Docker daemon、從 GitHub release 下載 Pulumi plugin 與 oras，以及 build scenario 的 golang 容器。`localhost`、`127.0.0.1` 與 `registry` 一律會加進 `NO_PROXY`。 |
 | `DOCKER_REGISTRY_MIRROR` | Docker Hub proxy 位址，寫入 `/etc/docker/daemon.json` 的 `registry-mirrors`。 |
-| `GOPROXY` | build scenario 時使用的 Go module proxy。 |
+| `GOPROXY` | 公司的 Go module mirror（Artifactory 或 Nexus 類型），例如 `https://artifactory.example/api/go/go-remote`，build scenario 時使用。如果 mirror 的主機在內網，請把它加進 `NO_PROXY`。 |
+| `GOSUMDB` | 選填的 checksum 資料庫，例如 mirror 有代理時可設為 `sum.golang.org https://<mirror>/sumdb/sum.golang.org`，只有公司要求時才設為 `off`。留空則使用 Go 的預設值。 |
+
+`GOPROXY` 指向 mirror 時，build scenario 的過程不需要連到 `storage.googleapis.com`（公開的 proxy 會把部分 module 轉址到那裡，mirror 不會）。build 容器也以 `GOTOOLCHAIN=local` 執行，Go 不會下載 toolchain，所以 `go.mod` 比 `golang:1.27-alpine` image 新時，build 會直接失敗。只有在開發用 VM 上（不屬於安裝流程），本機的 `go` 若比 `go.mod` 舊，執行 `go test` 會下載 toolchain，這個下載同樣會連到 `storage.googleapis.com`，請改用下方的 golang 容器。
 
 proxy 絕不會傳給本專案的服務容器或題目容器（compose 把所有 proxy 變數設為空值，scenario 也對題目容器做同樣的事），因此題目 instance 無法連到公司 proxy，也不會被導向 proxy。
 

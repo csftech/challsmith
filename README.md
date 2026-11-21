@@ -46,7 +46,10 @@ Ubuntu apt, Docker Hub, pip, npm, apk, Go modules and the GitHub release downloa
 |---|---|
 | `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` | apt, the Docker daemon, the GitHub release downloads of the Pulumi plugin and oras, and the golang build container of the scenarios. `localhost`, `127.0.0.1` and `registry` are always added to `NO_PROXY`. |
 | `DOCKER_REGISTRY_MIRROR` | Docker Hub proxy address, written to `registry-mirrors` in `/etc/docker/daemon.json`. |
-| `GOPROXY` | Go module proxy used when building the scenarios. |
+| `GOPROXY` | The company Go module mirror (Artifactory or Nexus style), for example `https://artifactory.example/api/go/go-remote`. Used when building the scenarios. If the mirror host is internal, add it to `NO_PROXY`. |
+| `GOSUMDB` | Optional checksum database, for example `sum.golang.org https://<mirror>/sumdb/sum.golang.org` when the mirror proxies it, or `off` only if the company requires it. Empty keeps Go's default. |
+
+With a mirror in `GOPROXY`, nothing in the scenario build needs `storage.googleapis.com` (the public proxy redirects some modules there, a mirror does not). The build container also runs with `GOTOOLCHAIN=local`, so Go never downloads a toolchain: a `go.mod` newer than the `golang:1.27-alpine` image fails the build instead. On the dev VM only (not part of the install), a native `go` older than `go.mod` downloads a toolchain for `go test`, which also goes to `storage.googleapis.com`; use the golang container shown below instead.
 
 The proxy is never passed to the stack's service containers or to challenge containers (compose sets every proxy variable to empty, and the scenarios do the same for challenge containers), so a challenge instance cannot reach or be steered through the company proxy.
 
