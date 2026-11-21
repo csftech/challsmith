@@ -2,6 +2,7 @@
 package main
 
 import (
+	"fmt"
 	"strconv"
 
 	sdk "github.com/ctfer-io/chall-manager/sdk"
@@ -46,8 +47,11 @@ func deploy(req *sdk.Request, resp *sdk.Response, opts ...pulumi.ResourceOption)
 		return err
 	}
 
-	resp.ConnectionInfo = c.Ports.ApplyT(func(ports []docker.ContainerPort) string {
-		return scenario.ConnectionInfo(cfg.Protocol, *ports[0].External)
+	resp.ConnectionInfo = c.Ports.ApplyT(func(ports []docker.ContainerPort) (string, error) {
+		if len(ports) == 0 || ports[0].External == nil {
+			return "", fmt.Errorf("container has no published port")
+		}
+		return scenario.ConnectionInfo(cfg.Protocol, *ports[0].External), nil
 	}).(pulumi.StringOutput)
 	resp.Flags = pulumi.ToStringArray([]string{flag}).ToStringArrayOutput()
 	return nil
