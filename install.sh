@@ -39,14 +39,19 @@ fi
 # 4. docker daemon config; restart only when something changed
 changed=0
 install -d /etc/docker /etc/systemd/system/docker.service.d
+# no mirror: leave daemon.json untouched; else merge only registry-mirrors (original kept once)
 if [ -n "$DOCKER_REGISTRY_MIRROR" ]; then
-  new="{\"registry-mirrors\": [\"$DOCKER_REGISTRY_MIRROR\"]}"
-else
-  new="{}"
-fi
-if [ ! -f /etc/docker/daemon.json ] || [ "$(cat /etc/docker/daemon.json)" != "$new" ]; then
-  [ ! -f /etc/docker/daemon.json ] || cp /etc/docker/daemon.json /etc/docker/daemon.json.bak
-  echo "$new" > /etc/docker/daemon.json; changed=1
+  [ -f /etc/docker/daemon.json ] || echo "{}" > /etc/docker/daemon.json
+  cp -n /etc/docker/daemon.json /etc/docker/daemon.json.bak
+  python3 - "$DOCKER_REGISTRY_MIRROR" <<PY && changed=1
+import json, sys
+p = "/etc/docker/daemon.json"
+d = json.load(open(p))
+if d.get("registry-mirrors") == [sys.argv[1]]:
+    sys.exit(1)
+d["registry-mirrors"] = [sys.argv[1]]
+json.dump(d, open(p, "w"), indent=2)
+PY
 fi
 dropin=/etc/systemd/system/docker.service.d/http-proxy.conf
 if [ -n "$HTTP_PROXY$HTTPS_PROXY" ]; then
@@ -76,12 +81,18 @@ chmod 750 "$DEST"
 chmod 600 "$ENVF"
 
 # 7. secrets: fill only when empty (rsync replaced the env file, so prefer the previous install's value)
-fill() { # $1 = key
-  if ! grep -qE "^$1=.+" "$ENVF"; then
-    val="$(sed -n "s/^$1=//p" "$OLD_ENV" | head -n1)"
-    [ -n "$val" ] || val="$(openssl rand -hex 32)"
-    if grep -qE "^$1=" "$ENVF"; then sed -i "s|^$1=.*|$1=$val|" "$ENVF"; else echo "$1=$val" >> "$ENVF"; fi
+fill() { # $1 = key; an installed non-empty value always wins
+  old="$(sed -n "s/^$1=//p" "$OLD_ENV" | head -n1)"
+  cur="$(sed -n "s/^$1=//p" "$ENVF" | head -n1)"
+  if [ -n "$old" ]; then
+    [ -z "$cur" ] || [ "$cur" = "$old" ] || echo "WARNING: $1 in challsmith.env differs from the installed value; ignored, keeping the installed one." >&2
+    val="$old"
+  elif [ -z "$cur" ]; then
+    val="$(openssl rand -hex 32)"
+  else
+    return 0
   fi
+  if grep -qE "^$1=" "$ENVF"; then sed -i "s|^$1=.*|$1=$val|" "$ENVF"; else echo "$1=$val" >> "$ENVF"; fi
 }
 fill CTFD_SECRET_KEY
 fill CTFD_DB_PASSWORD
@@ -101,7 +112,7 @@ for _ in $(seq 60); do
   sleep 2
 done
 curl -fsS --noproxy '*' -o /dev/null http://127.0.0.1:5000/v2/ || { echo "Registry did not come up" >&2; exit 1; }
-sudo -u aps -H env GOPROXY="${GOPROXY:-}" ORAS_IMAGE="${ORAS_IMAGE:-ghcr.io/oras-project/oras:v1.3.0}" \
+sudo -u aps -H env GOPROXY="${GOPROXY:-}" ${ORAS_IMAGE:+ORAS_IMAGE="$ORAS_IMAGE"} \
   "$DEST/scripts/push-scenarios.sh" v1
 
 # 10. Burp Suite Community
