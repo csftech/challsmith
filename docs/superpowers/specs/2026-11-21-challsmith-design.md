@@ -161,7 +161,7 @@ challsmith 只維護兩個通用 scenario，都以 ctfd-chall-manager 的 `hack/
 ### 6.3 動態 flag
 
 1. 作者在 web app 設定 flag 範本，例如 `php_strcmp_array`，發佈時寫進 `additional.flag`。
-2. scenario 以 `sdk.VariateFlag` 產生這個 instance 的 flag，種子由 instance 的 identity 加上這台 VM 專屬的 secret 組成，再用 `flag_prefix` 包成 `CTF{...}`。
+2. scenario 以 `sdk.Variate(identity, flag)` 產生這個 instance 的 flag，再用 `flag_prefix` 包成 `CTF{...}`。
 3. scenario 把 flag 以環境變數 `FLAG` 注入題目 container。多 container 時注入所有 container，由題目自己決定在哪裡使用，例如寫進 DB。
 4. scenario 在回應中輸出這個 flag，交給 ctfd-chall-manager 驗證。
 
@@ -169,11 +169,7 @@ CTFd 端不建立靜態 flag。plugin 會把 CTFd 設定的 flag 與 instance �
 
 範本的 entrypoint 負責在服務啟動前，把 `$FLAG` 放到題目需要的位置，例如寫成 `/flag.txt`。題目 image 裡不含 flag，同一個 image 可以重複使用。
 
-**每台 VM 的 secret**（實作者的判斷）：所有新人的 VM 都是同一份 vmdk 複製出來的，CTFd 的使用者 ID 都從 1 開始編。如果只用 identity 當種子，不同 VM 上第一個註冊的人會拿到一樣的 flag，互抄就會成功。因此每台 VM 在第一次開機時產生一個隨機 secret，混進 flag 的種子裡。
-
-- 由一個 systemd 的一次性服務在第一次開機時產生 secret，存在 `aps` 才能讀的位置，並寫進每一題 `additional` 的 `vm_secret` 鍵，或用其他 scenario 讀得到的方式提供。
-- 發佈前清理會刪除這個 secret，讓匯出的 vmdk 在新人第一次開機時重新產生。
-- 實作前要先確認 chall-manager 的 identity 是怎麼算的，以及 scenario 能讀到哪些來源，再決定 secret 怎麼傳進 scenario。
+identity 是 chall-manager 每開一個 instance 就用 crypto/rand 產生的隨機值（`pkg/identity/identity.go`），跟 CTFd 的使用者 ID 無關。因此即使所有新人的 VM 都從同一份 vmdk 複製，使用者 ID 都從 1 開始，每個 instance 的 flag 仍然不同，不需要額外的 VM secret。同一位新人刪掉 instance 再重開時也會拿到新的 flag，plugin 驗證的是當下這個 instance 的 flag。
 
 ## 7. 題目格式
 
@@ -286,8 +282,6 @@ visible: true
 1. 關閉所有還在跑的 instance（透過 chall-manager API），並移除殘留的題目 container 與 network。
 2. 刪除 CTFd 中所有非管理者的使用者，以及其解題與提交紀錄。
 3. 清除 web app 的登入 session。
-4. 刪除這台 VM 的 flag secret（見 6.3），新人的 VM 第一次開機時會重新產生。
-
 清理不會刪除題目、image 或 web app 的資料。
 
 ## 9. 安裝與發放
