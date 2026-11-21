@@ -66,6 +66,7 @@ services:
       OCI_INSECURE: "true"
       DIR: /var/lib/chall-manager
       PULUMI_HOME: /var/lib/pulumi
+      PULUMI_BACKEND_URL: file:///var/lib/pulumi  # local state, no Pulumi Cloud login
     volumes:
       - cm-state:/var/lib/chall-manager
       - cm-pulumi:/var/lib/pulumi
