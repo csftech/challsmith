@@ -13,7 +13,7 @@ for name in single multi; do
   docker run --rm -u "$(id -u):$(id -g)" -v "$SRC:/src" -w /src \
     -e HOME=/src/bin/.cache -e GOCACHE=/src/bin/.cache/gocache -e GOMODCACHE=/src/bin/.cache/gomod \
     -e CGO_ENABLED=0 -e GOPROXY \
-    golang:1.26 go build -o "bin/$name/main" "./$name"
+    golang:1.27-alpine go build -o "bin/$name/main" "./$name"
 
   cat > "$SRC/bin/$name/Pulumi.yaml" <<YAML
 name: $name

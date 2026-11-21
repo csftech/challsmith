@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	sdk "github.com/ctfer-io/chall-manager/sdk"
-	"github.com/pulumi/pulumi-docker/sdk/v4/go/docker"
+	"github.com/pulumi/pulumi-docker/sdk/v5/go/docker"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/csftech/challsmith/scenarios/internal/scenario"
