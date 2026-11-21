@@ -57,7 +57,7 @@ challsmith 的核心是一個出題用的 web app，把這三件事收斂成「�
 - 公司不允許有漏洞的主機暴露在網路上，所以 CTFd 與所有題目 instance 只綁在 `127.0.0.1`，從 OA 網路連不到。（實作者的判斷）
 
 **網路**
-- 公司 OA 有 Ubuntu apt、Docker Hub、git、pip、npm、apk、Go module 的 proxy，也能透過 proxy 下載 Burp Suite，但沒有 PECL 與 GitHub releases 的 proxy。
+- 公司 OA 有 Ubuntu apt、Docker Hub、git、pip、npm、apk、Go module 的 proxy，也能透過 proxy 下載 Burp Suite 與 GitHub releases，但沒有 PECL 與 ghcr.io 的 proxy。
 - 公司內禁止 git push 到外部。公司內的 git 只能 pull，在公司內修改的題目以備份壓縮檔保存。
 - OA 網路上沒有 LLM 服務。
 
@@ -290,7 +290,7 @@ visible: true
 
 repo 提供一個安裝指令，在全新的 Ubuntu 26.04 Desktop 上以 sudo 執行：
 
-1. 透過 apt proxy 安裝 Docker Engine 與 compose plugin，透過 proxy 下載並安裝 Burp Suite Community。Go 與 oras 不裝在 VM 上，scenario 改用 `golang` 與 oras 的 container image 來 build 和推送，這兩個 image 透過 Docker Hub proxy 取得。Pulumi docker provider plugin 由安裝指令從 GitHub release 的 tarball（`pulumi-resource-docker-v5.3.0-linux-amd64.tar.gz`，版本與 scenario 使用的 pulumi-docker SDK 一致）以 `pulumi plugin install --file` 裝進 chall-manager 的 Pulumi home volume，避免 chall-manager 執行時自動下載而被公司網路擋下。tarball 的來源可以設成網址或本機檔案路徑。
+1. 透過 apt proxy 安裝 Docker Engine 與 compose plugin，透過 proxy 下載並安裝 Burp Suite Community。Go 與 oras 不裝在 VM 上，scenario 改用 `golang` 的 container image 來 build（透過 Docker Hub proxy 取得），再用從 GitHub release 下載、經 sha256 驗證的 oras 執行檔推送。Pulumi docker provider plugin 由安裝指令從 GitHub release 的 tarball（`pulumi-resource-docker-v5.3.0-linux-amd64.tar.gz`，版本與 scenario 使用的 pulumi-docker SDK 一致）以 `pulumi plugin install --file` 裝進 chall-manager 的 Pulumi home volume，避免 chall-manager 執行時自動下載而被公司網路擋下。tarball 的來源可以設成網址或本機檔案路徑。
 2. 設定 Docker 使用公司的 Docker Hub proxy，並把 pip、npm、apk、Go 的 proxy 設定以 build args 傳給題目 build。
 3. 建立 `aps`（加入 `docker` 群組）與 `ops`（無 sudo、不在 `docker` 群組）。
 4. 把專案放到 `aps` 擁有的目錄，例如 `/opt/challsmith`，權限設為 `ops` 無法讀取，避免直接看到設定檔裡的密碼。
@@ -313,7 +313,7 @@ repo 提供一個安裝指令，在全新的 Ubuntu 26.04 Desktop 上以 sudo �
 - 第一版只包 php-fpm 搭配常用的 PECL extension，涵蓋幾個 php 版本。
 - extension 與版本清單放在設定檔，新增時只改設定檔。
 - 不需要 PECL 的 image 一律直接用官方 image，在範本的 Dockerfile 裡安裝。
-- 同一個 repo 也包一版 oras 的 image，因為公司內連不到 ghcr.io。Pulumi docker provider plugin 改由安裝指令直接安裝（見 9.1），不需要另外包 chall-manager image。
+- oras 與 Pulumi docker provider plugin 都由安裝指令從 GitHub release 下載並驗證 sha256（見 9.1），這個 repo 不需要另外包 oras 或 chall-manager 的 image。
 - 這個 repo 列入第一版的範圍。Docker Hub 帳號名稱與 php 版本清單放在設定檔，第一版涵蓋 php 7.4、8.1、8.3，搭配 redis、mongodb 等常用 extension。（實作者的判斷）
 
 ## 11. 留給實作者的部分
