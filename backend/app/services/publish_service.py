@@ -20,7 +20,7 @@ def mirror_ref(image: str, prefix: str) -> str:
     if image.startswith(prefix.split("/")[0] + "/"):
         return image
     if "@" in image:
-        raise BadRequest(f"image {image!r}: digest references are not supported, use a tag")
+        raise BadRequest(f"image {image!r}: digest references are not supported, use a tag", code="digest_reference")
     if ":" not in image.rsplit("/", 1)[-1]:
         image += ":latest"
     return f"{prefix}/mirror/{image}"
@@ -65,12 +65,12 @@ def start_run(db: Session, slug: str) -> int:
     cleanup_service.lock_gate(db)
     if cleanup_service.cleanup_running(db):
         db.rollback()
-        raise Conflict("the pre-release cleanup is running; publish again when it has finished")
+        raise Conflict("the pre-release cleanup is running; publish again when it has finished", code="cleanup_running")
     ch = challenge_repository.get_by_slug_for_update(db, slug)
     if ch is None:
         raise NotFound("challenge not found")
     if publish_run_repository.get_running(db, ch) is not None:
-        raise Conflict("a publish is already running for this challenge")
+        raise Conflict("a publish is already running for this challenge", code="publish_running")
     run = publish_run_repository.add_running(db, ch)
     db.commit()
     return run.id
@@ -79,7 +79,7 @@ def start_run(db: Session, slug: str) -> int:
 def get_run(db: Session, run_id: int) -> dict:
     run = publish_run_repository.get(db, run_id)
     if run is None:
-        raise NotFound("publish run not found")
+        raise NotFound("publish run not found", code="publish_run_not_found")
     return {"status": run.status, "log": run.log, "created_at": run.created_at, "finished_at": run.finished_at}
 
 

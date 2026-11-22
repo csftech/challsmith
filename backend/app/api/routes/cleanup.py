@@ -22,7 +22,7 @@ def cleanup(
     registry=Depends(deps.get_registry_client),
 ):
     if body.confirm != cleanup_service.CONFIRM:
-        raise BadRequest(f'confirm must be "{cleanup_service.CONFIRM}"')
+        raise BadRequest(f'confirm must be "{cleanup_service.CONFIRM}"', code="confirm_mismatch")
     return cleanup_service.run_cleanup(db, cm, ctfd, docker, registry, lambda _: None)
 
 
@@ -37,4 +37,4 @@ def image_plan(
     try:
         return asdict(image_cleanup_service.plan(docker, registry, ctfd, lambda _: None))
     except Exception as e:
-        raise BadGateway(f"could not plan the image cleanup: {e}")
+        raise BadGateway(f"could not plan the image cleanup: {e}", code="cleanup_plan_failed")

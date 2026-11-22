@@ -15,7 +15,7 @@ BUSY = "a publish is running; wait for it to finish before the cleanup (it would
 
 def refuse_if_publishing(db: Session) -> None:
     if publish_run_repository.any_running(db):
-        raise Conflict(BUSY)
+        raise Conflict(BUSY, code="cleanup_running")
 
 
 def cleanup_running(db: Session) -> bool:
@@ -33,7 +33,7 @@ def _begin(db: Session) -> None:
     refuse_if_publishing(db)
     if cleanup_running(db):
         db.rollback()
-        raise Conflict("another cleanup is running")
+        raise Conflict("another cleanup is running", code="cleanup_running")
     setting_repository.put(db, MARK, {"since": datetime.now(UTC).isoformat()})
     db.commit()
 
@@ -79,7 +79,7 @@ def _run(db: Session, cm, ctfd, docker, registry, log) -> dict:
         log(f"deleted {len(trainees)} CTFd users")
     except Exception as e:
         log(f"failed: {e}")
-        raise BadGateway(f"cleanup stopped: {e}")
+        raise BadGateway(f"cleanup stopped: {e}", code="cleanup_failed")
     sessions = auth_service.clear_sessions(db)
     log(f"cleared {sessions} web sessions")
     refuse_if_publishing(db)  # cannot happen while the mark is set; checked again because deleting is final
@@ -89,6 +89,6 @@ def _run(db: Session, cm, ctfd, docker, registry, log) -> dict:
         log(f"removed {images['images']} images and {images['registry_tags']} registry tags")
     except Exception as e:
         log(f"failed: {e}")
-        raise BadGateway(f"cleanup stopped at unused images: {e}")
+        raise BadGateway(f"cleanup stopped at unused images: {e}", code="cleanup_failed")
     return {"instances": instances, "containers": containers, "networks": networks, "users": len(trainees),
             "sessions": sessions, **images}

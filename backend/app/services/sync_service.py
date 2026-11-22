@@ -58,12 +58,12 @@ def get_git_settings(db: Session) -> dict:
 
 def put_git_settings(db: Session, values: dict) -> dict:
     if not values["remote_url"].startswith(_URL_PREFIXES):
-        raise BadRequest("remote_url must start with https://, http:// or file:// (or be an absolute path)")
+        raise BadRequest("remote_url must start with https://, http:// or file:// (or be an absolute path)", code="invalid_remote_url")
     for key in ("branch", "dir"):
         if not git_client.valid_ref(values[key]):
-            raise BadRequest(f"invalid {key}")
+            raise BadRequest(f"invalid {key}", code="invalid_field")
     if "@" in urlsplit(values["remote_url"]).netloc:
-        raise BadRequest("remote_url must not contain credentials; use the username and token fields")
+        raise BadRequest("remote_url must not contain credentials; use the username and token fields", code="remote_credentials")
     old = _git_settings(db)
     if values.get("token") is None:
         values["token"] = old["token"]
@@ -75,14 +75,14 @@ def put_git_settings(db: Session, values: dict) -> dict:
 def _repo(db: Session) -> git_client.GitRepo:
     s = _git_settings(db)
     if not s["remote_url"]:
-        raise BadRequest("the git remote is not configured")
+        raise BadRequest("the git remote is not configured", code="remote_not_configured")
     cfg = get_settings()
     proxy = {"http_proxy": cfg.upstream_http_proxy, "https_proxy": cfg.upstream_https_proxy,
              "no_proxy": cfg.upstream_no_proxy}
     try:
         return git_client.GitRepo(git_root(), s, proxy)
     except GitError as e:
-        raise BadRequest(str(e))
+        raise BadRequest(str(e), code="sync_failed")
 
 
 # ---- export ----
@@ -168,22 +168,22 @@ def git_preview(db: Session) -> dict:
             source = repo.read_tree()
             invalid = dict(repo.invalid)
     except GitError as e:
-        raise BadGateway(str(e))
+        raise BadGateway(str(e), code="sync_failed")
     return preview(db, source, invalid)
 
 
 def archive_preview(db: Session, data: bytes) -> dict:
     if len(data) > MAX_UPLOAD:
-        raise TooLarge("archive too large")
+        raise TooLarge("archive too large", code="archive_too_large")
     try:
         files = archive_util.extract_tar_gz(data)
     except ValueError as e:
-        raise BadRequest(str(e))
+        raise BadRequest(str(e), code="invalid_archive")
     source: dict[str, dict[str, bytes]] = {}
     for path, content in files.items():
         parts = path.split("/", 2)
         if len(parts) != 3 or parts[0] != "challenges":
-            raise BadRequest(f"unexpected path in archive: {path!r} (only challenges/<slug>/... is allowed)")
+            raise BadRequest(f"unexpected path in archive: {path!r} (only challenges/<slug>/... is allowed)", code="unexpected_archive_path")
         source.setdefault(parts[1], {})[parts[2]] = content
     return preview(db, source, kind="archive")
 
@@ -193,11 +193,11 @@ def apply(db: Session, preview_id: str, decisions: dict[str, str]) -> dict:
         _prune()
         pv = _previews.get(preview_id)
     if pv is None:
-        raise NotFound("preview not found or expired; run the preview again")
+        raise NotFound("preview not found or expired; run the preview again", code="preview_not_found")
     items = pv["items"]
     missing = sorted(s for s, it in items.items() if it["status"] == "conflict" and s not in decisions)
     if missing:
-        raise BadRequest(f"a decision (source or db) is required for: {', '.join(missing)}")
+        raise BadRequest(f"a decision (source or db) is required for: {', '.join(missing)}", code="decision_required")
     for slug, it in items.items():
         if it["status"] == "invalid":
             continue
@@ -205,7 +205,7 @@ def apply(db: Session, preview_id: str, decisions: dict[str, str]) -> dict:
         now = None if ch is None else challenge_service.current_hash(db, ch)
         if now != it["db_hash"]:
             db.rollback()
-            raise Conflict(f"{slug} changed since the preview; run the preview again")
+            raise Conflict(f"{slug} changed since the preview; run the preview again", code="changed_since_preview")
     applied = []
     for slug, it in items.items():
         status = it["status"]
@@ -227,5 +227,5 @@ def apply(db: Session, preview_id: str, decisions: dict[str, str]) -> dict:
     db.commit()
     with _previews_lock:
         if _previews.pop(preview_id, None) is None:
-            raise NotFound("preview not found or expired; run the preview again")
+            raise NotFound("preview not found or expired; run the preview again", code="preview_not_found")
     return {"applied": applied}

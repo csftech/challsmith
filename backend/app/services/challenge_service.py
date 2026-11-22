@@ -70,14 +70,14 @@ def _repos(ch: Challenge) -> set[str]:
 
 def delete_challenge(db: Session, ch: Challenge, ctfd: ctfd_client.CtfdClient, docker, registry) -> None:
     if publish_run_repository.get_running(db, ch) is not None:
-        raise Conflict("a publish is running for this challenge; wait for it to finish before deleting")
+        raise Conflict("a publish is running for this challenge; wait for it to finish before deleting", code="publish_running")
     if ch.ctfd_id is not None:
         try:
             ctfd.delete_challenge(ch.ctfd_id)
         except CtfdNotFound:
             pass  # already gone on CTFd
         except CtfdError as e:
-            raise BadGateway(f"could not delete the CTFd challenge: {e}")
+            raise BadGateway(f"could not delete the CTFd challenge: {e}", code="ctfd_unreachable")
     others = set().union(*(_repos(c) for c in challenge_repository.list_all(db) if c.id != ch.id))
     repos = _repos(ch) - others  # slug "a" + service "b-c" and slug "a-b" + service "c" share a repo
     challenge_repository.delete_challenge(db, ch)
@@ -98,17 +98,17 @@ def service_path(meta: challenge_schema.ChallengeMeta, raw: str, *, need_rest: b
     try:
         path = challenge_schema.safe_relpath(raw)
     except ValueError as e:
-        raise BadRequest(str(e))
+        raise BadRequest(str(e), code="invalid_path")
     parts = path.split("/")
     folders = {s.name for s in meta.services if not s.image}
     if parts[0] != "services" or len(parts) < 2 or parts[1] not in folders or (need_rest and len(parts) < 3):
-        raise BadRequest("path must be inside services/<service without image>/")
+        raise BadRequest("path must be inside services/<service without image>/", code="invalid_path")
     return path
 
 
 def bounded(data: bytes, limit: int) -> bytes:
     if len(data) > limit:
-        raise TooLarge()
+        raise TooLarge(code="file_too_large")
     return data
 
 
@@ -132,18 +132,18 @@ def list_summaries(db: Session) -> list[dict]:
 
 def create_challenge(db: Session, slug: str, template: str, name: str) -> None:
     if challenge_repository.slug_exists(db, slug):
-        raise Conflict("slug already exists")
+        raise Conflict("slug already exists", code="slug_exists")
     if template not in {t.name for t in template_service.list_templates()}:
-        raise BadRequest("unknown template")
+        raise BadRequest("unknown template", code="unknown_template")
     try:
         meta, files = template_service.instantiate(template, slug, name)
     except ValueError as e:
-        raise Unprocessable(str(e))
+        raise Unprocessable(str(e), code="invalid_challenge")
     try:
         save_challenge(db, slug, meta, files)
     except IntegrityError:
         db.rollback()
-        raise Conflict("slug already exists")
+        raise Conflict("slug already exists", code="slug_exists")
 
 
 def detail(db: Session, slug: str) -> dict:
@@ -158,11 +158,11 @@ def detail(db: Session, slug: str) -> dict:
 def update_meta(db: Session, slug: str, meta: challenge_schema.ChallengeMeta, prune: bool) -> None:
     ch, _, files = load_challenge(db, slug)
     if meta.slug != slug:
-        raise BadRequest("slug cannot be changed")
+        raise BadRequest("slug cannot be changed", code="slug_immutable")
     folders = {s.name for s in meta.services if not s.image}
     orphans = sorted(p for p in files if p.startswith("services/") and p.split("/")[1] not in folders)
     if orphans and not prune:
-        raise Conflict({"orphans": orphans})
+        raise Conflict({"orphans": orphans}, code="orphan_files")
     ch.meta = meta.model_dump(mode="json")
     put_files(db, ch, remove=orphans)
 
@@ -170,7 +170,7 @@ def update_meta(db: Session, slug: str, meta: challenge_schema.ChallengeMeta, pr
 def read_file(db: Session, slug: str, path: str) -> bytes:
     _, _, files = load_challenge(db, slug)
     if path not in files:
-        raise NotFound("file not found")
+        raise NotFound("file not found", code="file_not_found")
     return files[path]
 
 
@@ -183,7 +183,7 @@ def remove_file(db: Session, slug: str, path: str) -> None:
     ch, meta, files = load_challenge(db, slug)
     path = service_path(meta, path, need_rest=True)
     if path not in files:
-        raise NotFound("file not found")
+        raise NotFound("file not found", code="file_not_found")
     put_files(db, ch, remove=[path])
 
 
@@ -195,18 +195,18 @@ def upload(db: Session, slug: str, dir: str, filename: str | None, fileobj: Bina
         # compressed size is bounded by the same cap as the extracted total
         data = fileobj.read(archive_util.MAX_TOTAL + 1)
         if len(data) > archive_util.MAX_TOTAL:
-            raise BadRequest("archive too large")
+            raise BadRequest("archive too large", code="archive_too_large")
         try:
             new = {f"{base}/{p}": c for p, c in archive_util.extract_zip(data).items()}
         except ValueError as e:
-            raise BadRequest(str(e))
+            raise BadRequest(str(e), code="invalid_archive")
     else:
         if not name:
-            raise BadRequest("missing file name")
+            raise BadRequest("missing file name", code="missing_file_name")
         try:
             target = challenge_schema.safe_relpath(f"{base}/{name}")
         except ValueError as e:
-            raise BadRequest(str(e))
+            raise BadRequest(str(e), code="invalid_path")
         new = {target: bounded(fileobj.read(MAX_FILE + 1), MAX_FILE)}
     put_files(db, ch, new)
     return sorted(new)
