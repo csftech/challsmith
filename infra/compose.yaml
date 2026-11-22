@@ -109,7 +109,7 @@ services:
       - chall-manager
 
   registry:
-    image: registry:3.1
+    image: registry:3
     restart: unless-stopped
     environment: *no-proxy
     ports:
