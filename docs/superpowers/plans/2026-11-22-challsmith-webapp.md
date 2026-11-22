@@ -6,7 +6,7 @@
 
 **Architecture：** 三個新的 compose 服務：`web`（Next.js，BFF，唯一對外，`127.0.0.1:3000`）、`api`（FastAPI，只在內部網路，掛 docker.sock，用 docker CLI build 與 push）、`app-db`（PostgreSQL）。瀏覽器只跟 `web` 溝通，`web` 把 session token 放在 httpOnly cookie，轉送給 `api` 驗證，session 存在 PostgreSQL。題目以資料庫為正本，git 與 `.tar.gz` 都使用 spec 第 7 節的資料夾格式，以三方 hash 判斷誰改過。
 
-**Tech Stack：** Python（FastAPI、SQLAlchemy 2、Alembic、psycopg 3、httpx、PyYAML、pytest）、Next.js（App Router，TypeScript）、CodeMirror 6（`@uiw/react-codemirror`）、PostgreSQL alpine image、alpine 的 `docker-cli`、`docker-cli-buildx` 與 `git` 套件。
+**Tech Stack：** Node.js 26 LTS、Next.js 16 LTS（App Router，TypeScript）、PostgreSQL 18、Python 3.15（FastAPI、SQLAlchemy 2、Alembic、psycopg 3、httpx、PyYAML、pytest）、CodeMirror 6（`@uiw/react-codemirror`）、alpine 的 `docker-cli`、`docker-cli-buildx` 與 `git` 套件。
 
 **Spec：** `docs/superpowers/specs/2026-11-21-challsmith-design.md`（第 2、5、7、8、9 節）。第 1 部分完成後的實際狀態以 `README.md`、`infra/compose.yaml` 與 `install.sh` 為準，spec 第 3 節的版本號已經過時。
 
@@ -16,7 +16,13 @@
 
 - 開發與測試在使用者的 Ubuntu 26.04 開發 VM 上透過 SSH 進行：`ssh -i ~/.ssh/challsmith_vm -o BatchMode=yes <user>@<dev-vm>`，連線資訊在本機 `.env`。不讀取、不印出 `.env` 的內容。Windows 端用 `tar --exclude=./.env --exclude=./.git --exclude=./.superpowers --exclude=./web/node_modules --exclude=./web/.next -cf - . | ssh ... 'mkdir -p ~/challsmith && tar -xf - -C ~/challsmith'` 同步。VM 已裝第 1 部分（`/opt/challsmith`），以 `sudo ./install.sh` 重裝即可套用變更。
 - 公開 repo 不可出現 VM 的 IP、帳密或任何 `.env` 內容。
-- 版本：每個 image 與套件都用實作當下的最新穩定版，並固定確切版本（compose 寫明 tag，`requirements.txt` 與 `package-lock.json` 鎖版）。image 有 alpine 版就用 alpine 版。開工時查證並記在 ledger，預期是 `python:3.15-alpine`、`node:26-alpine`（當下的 LTS）、`postgres:19-alpine`（若 19 尚未發布用 18）。Python 3.15 若缺必要套件的 musl wheel，退回 3.14 並記一筆 ruling。
+- 版本：盡可能使用彼此相容的最新 LTS 版本。有 LTS 的元件用最新的 LTS 版本；沒有 LTS 的元件，用最新的穩定版，但不選剛發布的 `.0` 大版本；其他套件用與上述版本相容的最新穩定版。所有版本都要固定確切版本號：compose 寫明 tag，`requirements.txt` 與 `package-lock.json` 鎖版。image 有 alpine 版就用 alpine 版。開工時查證並記在 ledger。以 2026-11-22 查到的狀態，預期如下：
+  - Node.js：`node:26-alpine`，26 是目前的 Active LTS，最新為 26.13.1。
+  - Next.js：16.x，16 是目前的 LTS 版本線，最新為 16.4.6。React 沒有 LTS，使用 Next.js 16 支援的最新 19.x。
+  - PostgreSQL：沒有 LTS，每個大版本都支援 5 年。19 目前只有 19.0，所以用 `postgres:18-alpine`，最新為 18.7。
+  - Python：沒有 LTS，用 `python:3.15-alpine`，支援到 2028-10，第 1 部分的 e2e 已在使用。如果有必要的套件缺少 3.15 的 musl wheel，退回 3.14，並記一筆 ruling。
+  - alpine：沒有 LTS，用最新的穩定版。
+  - 第 1 部分已使用的 MariaDB 11.8 本身就是 LTS，維持不變。
 - 第 1 部分沿用的版本不改：`mariadb:11.8`、`php:8.6-*-alpine`、`nginx:1.30-alpine`、scenario `registry:5000/challsmith/scenarios/single:v1` 與 `multi:v1`。
 - 所有服務 container 的 environment 都要套用 compose 的 `*no-proxy` anchor，不使用 `env_file`。公司 proxy 只以 `UPSTREAM_HTTP_PROXY`、`UPSTREAM_HTTPS_PROXY`、`UPSTREAM_NO_PROXY` 傳進 `api`，只在兩個地方使用：題目 `docker build` 的 `--build-arg`（`HTTP_PROXY`、`HTTPS_PROXY`、`NO_PROXY` 與小寫三個），以及 `git` 子程序的環境變數。題目 container 與 image 的 ENV 不能帶到 proxy。
 - `web` 與 `api` 的 image build 跟 `ctfd` 一樣，以 compose 的 predefined proxy build args 取得 npm、pip、apk 的 proxy。
@@ -186,8 +192,8 @@ challsmith/
 | 範本 | services | 內容 |
 |---|---|---|
 | `php` | `app`（port 80，entry） | `php:8.6-cli-alpine`，`php -S 0.0.0.0:80 -t /var/www/html`，範例 `index.php` 只顯示一段提示文字，不讀 flag |
-| `python-flask` | `app`（port 5000，entry） | `python:3.15-alpine`（或 Task 1 選定的版本），`requirements.txt` 固定 Flask 版本，`app.py` 監聽 `0.0.0.0:5000` |
-| `node-nextjs` | `app`（port 3000，entry） | `node:26-alpine`（或 Task 1 選定的版本），最小的 Next.js App Router 專案，build 時 `npm ci && npm run build`，以 `next start -H 0.0.0.0 -p 3000` 啟動，附上 `package-lock.json` |
+| `python-flask` | `app`（port 5000，entry） | `python:3.15-alpine`（或 Task 1 選定的版本），`requirements.txt` 固定 Flask 的最新穩定版，`app.py` 監聽 `0.0.0.0:5000` |
+| `node-nextjs` | `app`（port 3000，entry） | `node:26-alpine`（或 Task 1 選定的版本），最小的 Next.js 16 App Router 專案，build 時 `npm ci && npm run build`，以 `next start -H 0.0.0.0 -p 3000` 啟動，附上 `package-lock.json` |
 | `nginx-php-db` | `web`（port 80，entry）、`php`、`db`（`image: mariadb:11.8`，env `MARIADB_ROOT_PASSWORD`、`MARIADB_DATABASE: app`） | 以 `examples/hello-multi` 為基礎：nginx 轉給 `php:9000`；php-fpm 用 `docker-php-ext-install pdo_mysql mysqli`，`clear_env = no`；`instance.memory` 為 `512m` |
 | `tcp` | `app`（port 9000，entry） | `alpine` 最新的固定版本，`apk add socat`，`socat TCP-LISTEN:9000,reuseaddr,fork EXEC:/app/run.sh`，`protocol: tcp`，`category` 為 `Pwn` |
 
