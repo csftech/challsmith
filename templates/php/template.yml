@@ -1,0 +1,7 @@
+description: PHP 8.6 built-in web server, one container
+scenario: single
+protocol: http
+services:
+  - name: app
+    port: 80
+    entry: true
