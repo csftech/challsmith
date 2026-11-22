@@ -33,6 +33,7 @@
 - web app 只有一個管理者帳號，帳密來自 `challsmith.env` 的 `WEB_ADMIN_USER`、`WEB_ADMIN_PASSWORD`。
 - `README.md`（英文）與 `README_ZH-TW.md`（繁體中文）內容一致，兩份都要更新。
 - api 的模組依「檔案結構」的資料夾分層：`core/`、`models/`、`formats/`、`clients/`、`services/`、`routers/`、`cli/`。router 只處理 HTTP（解析請求、呼叫 service、轉換錯誤成狀態碼），業務邏輯放在 `services/`，外部系統的呼叫放在 `clients/`。以下各 task 寫到的 `docker_ops.X`、`ctfd.X`、`gitrepo.X`、`chall_manager.X`、`publish.X`、`sync.X`、`cleanup.X`、`templates.X`、`challenge_format.X`，分別位於 `clients/docker.py`、`clients/ctfd.py`、`clients/git.py`、`clients/chall_manager.py`、`services/publish.py`、`services/sync.py`、`services/cleanup.py`、`services/templates.py`、`formats/challenge.py`，路由一律放在 `routers/` 的同名檔案。
+- 跨層呼叫時引用模組，不引用函式，讓呼叫端一眼看出呼叫的是哪一層，例如 router 寫 `from challsmith_api.services import challenges as challenge_service`，呼叫時寫 `challenge_service.put_files(...)`，不寫 `from ...services.challenges import put_files`。別名一律是 `<名稱>_service`、`<名稱>_client`、`<名稱>_format`（例如 `ctfd_client`、`archive_format`）。models、`core.deps` 的 dependency 與 `services/errors.py` 的例外類別可以直接引用名稱。同一層、同一個模組內的呼叫不受此限。
 - 本專案自己計算的 hash 一律使用 BLAKE3（Python 用 `blake3` 套件），包括題目內容 hash、service hash（image tag）與 session token hash。上游提供的 checksum（安裝指令驗證 pulumi-docker 的 SHA-1 與 oras 的 SHA-256）照上游格式，不在此列。
 - commit 訊息結尾加上 `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`。
 
