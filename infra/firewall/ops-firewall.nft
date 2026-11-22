@@ -12,12 +12,10 @@ table inet challsmith_ops {
     # container networks: the compose network and every per-instance network the scenarios create
     meta skuid "ops" oifname "docker0" reject
     meta skuid "ops" oifname "br-*" reject
-    # the registry has no auth; a push could replace a scenario that chall-manager runs with docker.sock
-    meta skuid "ops" ip daddr 127.0.0.0/8 tcp dport 5000 reject with tcp reset
-    meta skuid "ops" ip6 daddr ::1 tcp dport 5000 reject with tcp reset
-    # trainees never need the web app; blocking it also stops password guessing against its login page
-    meta skuid "ops" ip daddr 127.0.0.0/8 tcp dport 3000 reject with tcp reset
-    meta skuid "ops" ip6 daddr ::1 tcp dport 3000 reject with tcp reset
+    # the registry has no auth (a push could replace a scenario that chall-manager runs with docker.sock) and trainees
+    # never need the web app (blocking it also stops password guessing against its login page). Matched on the
+    # interface, not the address, so every local address of the host (LAN, bridge, fe80, ::1) is covered, both families.
+    meta skuid "ops" oifname "lo" tcp dport { 3000, 5000 } reject with tcp reset
     # loopback is open: CTFd on 127.0.0.1:8000, instance ports (Docker's userland proxy), Burp's listener, the DNS stub
     meta skuid "ops" oifname "lo" accept
     # default deny, rejected so connections fail fast instead of hanging

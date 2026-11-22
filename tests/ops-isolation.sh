@@ -28,21 +28,46 @@ expect open 127.0.0.1 8000 ctfd
 blocked 127.0.0.1 3000 web
 open_as aps 127.0.0.1 3000 && echo "ok   aps web 127.0.0.1:3000 open" || { echo "FAIL aps web 127.0.0.1:3000 closed"; fail=1; }
 
-# default deny: ops cannot reach the internet (root can, so "closed" means filtered, not offline)
-if open_as root 1.1.1.1 443 || open_as root 8.8.8.8 53; then
-  for t in 1.1.1.1:443 8.8.8.8:53; do expect closed "${t%:*}" "${t#*:}" external; done
-else echo "note: no internet, external check skipped"; fi
+# default deny: ops cannot reach the internet. Per target root must connect (so "closed" means filtered, not offline)
+# and ops must fail fast (< 1 s), which proves reject, not drop.
+ext=0
+for t in 1.1.1.1:443 8.8.8.8:53; do
+  h=${t%:*} p=${t#*:}
+  open_as root "$h" "$p" || continue
+  ext=1
+  s0=$(date +%s%N); expect closed "$h" "$p" external; ms=$(( ($(date +%s%N) - s0) / 1000000 ))
+  if [ "$ms" -lt 1000 ]; then echo "ok   ops external $h:$p failed fast (${ms} ms)"; else echo "FAIL ops external $h:$p took ${ms} ms, drop instead of reject?"; fail=1; fi
+done
+[ "$ext" = 1 ] || echo "note: no internet, external check skipped"
 
-# loopback stays open for ops: a listener on a random high port (Burp's proxy and browser use such ports)
-lport=$((20000 + RANDOM % 20000))
-sudo -u ops python3 -m http.server "$lport" --bind 127.0.0.1 >/dev/null 2>&1 & lpid=$!
-sleep 1
-expect open 127.0.0.1 "$lport" loopback-listener
-kill "$lpid" 2>/dev/null
+# defense in depth: the host's own non-loopback address must not reach the web app or the registry either
+# (those ports bind 127.0.0.1, so root may be refused too; only ops is asserted)
+hip=$(ip -4 -o addr show scope global | awk '{sub("/.*","",$4); print $4; exit}')
+if [ -n "$hip" ]; then for p in 3000 5000; do expect closed "$hip" "$p" "host-address (defense in depth)"; done
+else echo "note: no global IPv4 address, host-address check skipped"; fi
+
+# loopback stays open for ops: a listener on a free port below Docker's ephemeral range (Burp's proxy and browser use such ports)
+ldir=$(mktemp -d)
+lis_clean() { pkill -u ops -f "http.server $lport" 2>/dev/null; rm -rf "$ldir"; }
+lport=
+for _ in $(seq 20); do
+  c=$((20000 + RANDOM % 12000))
+  ss -ltn "sport = :$c" | grep -q LISTEN || { lport=$c; break; }
+done
+if [ -z "$lport" ]; then echo "FAIL no free port for the loopback listener"; fail=1
+else
+  chmod 755 "$ldir"
+  trap lis_clean EXIT
+  sudo -u ops python3 -m http.server "$lport" --bind 127.0.0.1 --directory "$ldir" >/dev/null 2>&1 &
+  sleep 1
+  # the server must really be up (ss sees it listening), else a bind failure could be a false pass or a false fail
+  if ss -ltn "sport = :$lport" | grep -q LISTEN; then expect open 127.0.0.1 "$lport" loopback-listener
+  else echo "FAIL loopback listener did not start on $lport"; fail=1; fi
+fi
 
 # instance networks: a container on a challenge-* network must not reach any platform service
 iso_clean() { docker rm -f challenge-isocheck-c challenge-isocheck-srv >/dev/null 2>&1; docker network rm challenge-isocheck >/dev/null 2>&1; }
-iso_clean; trap iso_clean EXIT
+iso_clean; trap 'iso_clean; lis_clean' EXIT
 IMG=${ISOCHECK_IMAGE:-alpine:3.24.4}
 iso_ok=1
 docker network create challenge-isocheck >/dev/null   && docker run -d --name challenge-isocheck-srv --network challenge-isocheck "$IMG" sh -c 'while :; do nc -l -p 9999; done' >/dev/null   && docker run -d --name challenge-isocheck-c --network challenge-isocheck "$IMG" sleep infinity >/dev/null   || { echo "FAIL cannot start the challenge-isocheck containers"; fail=1; iso_ok=0; }
