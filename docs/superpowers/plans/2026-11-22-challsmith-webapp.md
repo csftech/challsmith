@@ -32,6 +32,7 @@
 - `slug` 必須符合 `^[a-z0-9][a-z0-9-]{0,47}$`，service 名稱必須符合 `^[a-z0-9-]+$`（與 `scenarios/internal/scenario/config.go` 的 `nameRe` 一致）。
 - web app 只有一個管理者帳號，帳密來自 `challsmith.env` 的 `WEB_ADMIN_USER`、`WEB_ADMIN_PASSWORD`。
 - `README.md`（英文）與 `README_ZH-TW.md`（繁體中文）內容一致，兩份都要更新。
+- api 的模組依「檔案結構」的資料夾分層：`core/`、`models/`、`formats/`、`clients/`、`services/`、`routers/`、`cli/`。router 只處理 HTTP（解析請求、呼叫 service、轉換錯誤成狀態碼），業務邏輯放在 `services/`，外部系統的呼叫放在 `clients/`。以下各 task 寫到的 `docker_ops.X`、`ctfd.X`、`gitrepo.X`、`chall_manager.X`、`publish.X`、`sync.X`、`cleanup.X`、`templates.X`、`challenge_format.X`，分別位於 `clients/docker.py`、`clients/ctfd.py`、`clients/git.py`、`clients/chall_manager.py`、`services/publish.py`、`services/sync.py`、`services/cleanup.py`、`services/templates.py`、`formats/challenge.py`，路由一律放在 `routers/` 的同名檔案。
 - 本專案自己計算的 hash 一律使用 BLAKE3（Python 用 `blake3` 套件），包括題目內容 hash、service hash（image tag）與 session token hash。上游提供的 checksum（安裝指令驗證 pulumi-docker 的 SHA-1 與 oras 的 SHA-256）照上游格式，不在此列。
 - commit 訊息結尾加上 `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`。
 
@@ -54,21 +55,31 @@ challsmith/
 │  ├─ requirements.txt / requirements-dev.txt
 │  ├─ alembic.ini / alembic/        Task 1（schema 版本）
 │  ├─ challsmith_api/
-│  │  ├─ config.py                  Task 1（讀環境變數）
-│  │  ├─ db.py / models.py          Task 1
 │  │  ├─ main.py                    Task 1（FastAPI app，掛上各 router）
-│  │  ├─ challenge_format.py        Task 2（ChallengeMeta、驗證、YAML、資料夾讀寫）
-│  │  ├─ archive.py                 Task 2（安全解壓 zip 與 tar.gz、產生 tar.gz）
-│  │  ├─ hashing.py                 Task 2
-│  │  ├─ auth.py                    Task 3
-│  │  ├─ templates.py               Task 4
-│  │  ├─ challenges.py              Task 5（CRUD、檔案、上傳的 router）
-│  │  ├─ docker_ops.py              Task 6（docker CLI 包裝）
-│  │  ├─ ctfd.py                    Task 6（CTFd API client）
-│  │  ├─ publish.py                 Task 6（組 additional、發佈流程、router）
-│  │  ├─ gitrepo.py / sync.py       Task 7
-│  │  ├─ chall_manager.py           Task 8
-│  │  └─ cleanup.py                 Task 8（router 與 `python -m challsmith_api.cleanup`）
+│  │  ├─ core/                      設定、資料庫連線、FastAPI dependency
+│  │  │  ├─ config.py / db.py       Task 1
+│  │  │  └─ deps.py                 Task 3（require_session）
+│  │  ├─ models/                    SQLAlchemy 資料表，一個實體一個檔案，`__init__.py` 匯出全部
+│  │  ├─ formats/                   純函式，不碰資料庫與網路
+│  │  │  ├─ challenge.py            Task 2（ChallengeMeta、驗證、YAML、資料夾讀寫）
+│  │  │  ├─ archive.py              Task 2（安全解壓 zip 與 tar.gz、產生 tar.gz）
+│  │  │  └─ hashing.py              Task 2
+│  │  ├─ clients/                   對外部系統的包裝
+│  │  │  ├─ docker.py               Task 6（docker CLI，`DockerOps`）
+│  │  │  ├─ ctfd.py                 Task 6（CTFd API client）
+│  │  │  ├─ git.py                  Task 7（`GitRepo`）
+│  │  │  └─ chall_manager.py        Task 8
+│  │  ├─ services/                  業務邏輯，給 router 與命令列共用
+│  │  │  ├─ auth.py                 Task 3
+│  │  │  ├─ templates.py            Task 4
+│  │  │  ├─ challenges.py           Task 5（load、save、hash、狀態、刪除）
+│  │  │  ├─ publish.py              Task 6
+│  │  │  ├─ sync.py                 Task 7
+│  │  │  └─ cleanup.py              Task 8
+│  │  ├─ routers/                   只放 HTTP 路由，呼叫 services
+│  │  │  └─ auth.py、templates.py、challenges.py、publish.py、sync.py、cleanup.py
+│  │  └─ cli/
+│  │     └─ cleanup.py              Task 8（`python -m challsmith_api.cli.cleanup`）
 │  └─ tests/
 │     ├─ run.sh                     Task 1（起一個暫時的 postgres，在 test image 跑 pytest）
 │     └─ test_*.py
@@ -234,11 +245,28 @@ challsmith/
 - [ ] **Step 4：重跑測試，預期通過。**
 - [ ] **Step 5：commit** `feat(api): challenge CRUD, file editing and uploads`
 
+### Task 5b：api 模組分層
+
+使用者在 Task 5 完成後要求：不要把 model、route、config、db 全部放在同一層，改成依元件分資料夾。這個 task 只搬移與改 import，不改行為。
+
+**Files:**
+- Move：`config.py`、`db.py` → `core/`；`models.py` → `models/`（`base.py` 放 `Base` 與共用欄位 helper，`challenge.py` 放 `Challenge` 與 `ChallengeFile`，`web_session.py`、`setting.py`、`publish_run.py` 各放一個，`__init__.py` 匯出全部）；`challenge_format.py`、`archive.py`、`hashing.py` → `formats/`（`challenge_format.py` 改名為 `formats/challenge.py`）；`templates.py` → `services/templates.py`；`routes_templates.py` → `routers/templates.py`；`auth.py` 拆成 `services/auth.py`（token hash、建立與驗證 session、`clear_sessions`）、`core/deps.py`（`require_session`）與 `routers/auth.py`（`/auth/*` 路由）；`challenges.py` 拆成 `services/challenges.py`（`load_challenge`、`save_challenge`、`current_hash`、`status_of`、`delete_challenge` 與其他不碰 HTTP 的邏輯）與 `routers/challenges.py`。
+- Modify：`main.py`、`alembic/env.py`、`api/tests/*.py` 的 import。
+
+**Interfaces:**
+- Produces：上面的新位置。舊的平面模組全部刪除，不留相容用的轉接模組。services 層的函式在找不到資料時 raise 自己的例外（例如 `NotFound`、`Conflict`），由 router 轉成 HTTP 狀態碼。既有測試會呼叫這些函式，如果它們目前直接 raise `HTTPException`，就維持現在的行為，只在 report 裡註明。
+- 不改 HTTP 行為、不改資料表、不改測試的斷言，只改 import 與搬移時必要的呼叫位置。
+
+- [ ] **Step 1：搬移並修正 import。**
+- [ ] **Step 2：執行完整測試**，預期與搬移前同樣的測試數量全部通過（Task 5 結束時為 79 passed），`test_all_routes_require_session` 仍然涵蓋所有路由。
+- [ ] **Step 3：在 VM 上執行 `sudo ./install.sh`**，確認 api container 正常啟動，`alembic upgrade head` 與 `/health` 正常。
+- [ ] **Step 4：commit** `refactor(api): split modules into core, models, formats, services, routers`
+
 ### Task 6：發佈
 
 **Files:**
-- Create: `api/challsmith_api/docker_ops.py`、`api/challsmith_api/ctfd.py`、`api/challsmith_api/publish.py`
-- Modify: `api/challsmith_api/challenges.py`（DELETE 補上刪除 CTFd 題目）、`api/challsmith_api/main.py`
+- Create: `api/challsmith_api/clients/docker.py`、`api/challsmith_api/clients/ctfd.py`、`api/challsmith_api/services/publish.py`、`api/challsmith_api/routers/publish.py`
+- Modify: `api/challsmith_api/services/challenges.py`（`delete_challenge` 補上刪除 CTFd 題目）、`api/challsmith_api/main.py`
 - Test: `api/tests/test_publish.py`、`api/tests/test_ctfd.py`
 
 **Interfaces:**
@@ -284,7 +312,7 @@ challsmith/
 ### Task 7：git 與備份壓縮檔
 
 **Files:**
-- Create: `api/challsmith_api/gitrepo.py`、`api/challsmith_api/sync.py`
+- Create: `api/challsmith_api/clients/git.py`、`api/challsmith_api/services/sync.py`、`api/challsmith_api/routers/sync.py`
 - Modify: `api/challsmith_api/main.py`
 - Test: `api/tests/test_sync.py`、`api/tests/test_gitrepo.py`
 
@@ -329,7 +357,7 @@ challsmith/
 ### Task 8：發佈前清理
 
 **Files:**
-- Create: `api/challsmith_api/chall_manager.py`、`api/challsmith_api/cleanup.py`
+- Create: `api/challsmith_api/clients/chall_manager.py`、`api/challsmith_api/services/cleanup.py`、`api/challsmith_api/routers/cleanup.py`、`api/challsmith_api/cli/cleanup.py`
 - Modify: `api/challsmith_api/main.py`
 - Test: `api/tests/test_cleanup.py`
 
@@ -345,7 +373,7 @@ challsmith/
     3. `clear_sessions`
     回傳 `{"instances": n, "containers": n, "networks": n, "users": n, "sessions": n}`。某一步失敗時停止並 raise，已完成的步驟照實回報在 log。不刪除題目、image 或 web app 的其他資料。
   - `POST /cleanup` body `{"confirm": "CLEANUP"}`，`confirm` 不是這個字串時回 400。成功後因為 session 已清空，前端要導回登入頁。
-  - 命令列：`python -m challsmith_api.cleanup [--yes]`。沒有 `--yes` 時，先印出會做的事，要求輸入 `CLEANUP` 才執行，結果印在 stdout，失敗時以非 0 結束。
+  - 命令列：`python -m challsmith_api.cli.cleanup [--yes]`。沒有 `--yes` 時，先印出會做的事，要求輸入 `CLEANUP` 才執行，結果印在 stdout，失敗時以非 0 結束。
 
 - [ ] **Step 1：寫失敗的測試**：用 fake 的 `ChallManager`、`CtfdClient` 與 `DockerOps`，三個 instance 都被刪除；使用者清單裡的 admin 沒被刪、兩位一般使用者被刪；session 表被清空，但 `Challenge` 與 `ChallengeFile` 的筆數不變；`confirm` 錯誤時回 400 且所有 fake 都沒被呼叫；`list_instances` 用 `MockTransport` 回兩行 stream JSON 時解析出兩筆；`delete_instance` 收到 404 不 raise。
 - [ ] **Step 2：執行測試，預期失敗。**
@@ -408,7 +436,7 @@ challsmith/
 
 **Interfaces:**
 - Produces：
-  - `scripts/cleanup.sh`：以 `aps` 執行 `docker compose -p challsmith exec api python -m challsmith_api.cleanup "$@"`，供匯出 vmdk 前使用，需要互動確認時要配置 tty（不帶 `-T`）。
+  - `scripts/cleanup.sh`：以 `aps` 執行 `docker compose -p challsmith exec api python -m challsmith_api.cli.cleanup "$@"`，供匯出 vmdk 前使用，需要互動確認時要配置 tty（不帶 `-T`）。
   - `infra/ops-firewall.nft` 新增一條：`meta skuid "ops" ip daddr 127.0.0.0/8 tcp dport 3000 reject with tcp reset`，註解說明新人用不到 web app，擋掉可以避免對登入頁暴力猜測。
   - `infra/challsmith-ops-firewall.service`（處理第 1 部分暫緩的「防火牆載入失敗時放行」）：`ExecStartPre=/usr/bin/chage -E 0 ops` 先鎖住 `ops`，`ExecStart` 載入 nft，`ExecStartPost=/usr/bin/chage -E -1 ops` 只在載入成功後解鎖。載入失敗時 `ops` 無法登入，`aps` 不受影響。
   - `tests/ops-isolation.sh` 新增：
