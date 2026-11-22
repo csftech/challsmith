@@ -15,6 +15,7 @@ export DEBIAN_FRONTEND=noninteractive
 
 # values may be single-quoted (e.g. URLs containing &), which sourcing handles
 set -a; . "$SRC/challsmith.env"; set +a
+[ -n "${WEB_ADMIN_PASSWORD:-}" ] || { echo "WEB_ADMIN_PASSWORD is empty in challsmith.env: set the web app login password and rerun." >&2; exit 1; }
 : "${HTTP_PROXY:=}" "${HTTPS_PROXY:=}" "${NO_PROXY:=}" "${DOCKER_REGISTRY_MIRROR:=}"
 NO_PROXY_ALL="localhost,127.0.0.1,registry${NO_PROXY:+,$NO_PROXY}"
 [ -z "$HTTP_PROXY$HTTPS_PROXY" ] || export http_proxy="$HTTP_PROXY" https_proxy="$HTTPS_PROXY" no_proxy="$NO_PROXY_ALL"
@@ -113,6 +114,7 @@ fill() { # $1 = key; an installed non-empty value always wins
 }
 fill CTFD_SECRET_KEY
 fill CTFD_DB_PASSWORD
+fill APP_DB_PASSWORD
 [ "$OLD_ENV" = /dev/null ] || rm -f "$OLD_ENV"
 
 # 8. render ctfd-setup.yaml (reload env so generated secrets and admin values are current)

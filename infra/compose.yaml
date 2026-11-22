@@ -117,7 +117,64 @@ services:
     volumes:
       - registry:/var/lib/registry
 
+  app-db:
+    image: postgres:19-alpine
+    restart: unless-stopped
+    environment:
+      <<: *no-proxy
+      POSTGRES_USER: challsmith
+      POSTGRES_DB: challsmith
+      POSTGRES_PASSWORD: ${APP_DB_PASSWORD}
+    volumes:
+      - app-db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U challsmith -d challsmith"]
+      interval: 5s
+      retries: 20
+
+  api:
+    build:
+      context: ..
+      dockerfile: api/Dockerfile
+      target: runtime
+      # predefined proxy build args: used by RUN (apk, pip) but not kept in the image
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-}
+        http_proxy: ${HTTP_PROXY:-}
+        https_proxy: ${HTTPS_PROXY:-}
+        no_proxy: ${NO_PROXY:-}
+    image: challsmith/api:0.1.0
+    restart: unless-stopped
+    environment:
+      <<: *no-proxy
+      DATABASE_URL: postgresql+psycopg://challsmith:${APP_DB_PASSWORD}@app-db/challsmith
+      WEB_ADMIN_USER: ${WEB_ADMIN_USER:-admin}
+      WEB_ADMIN_PASSWORD: ${WEB_ADMIN_PASSWORD}
+      CTFD_URL: http://ctfd:8000
+      CTFD_ADMIN_NAME: ${CTFD_ADMIN_NAME}
+      CTFD_ADMIN_PASSWORD: ${CTFD_ADMIN_PASSWORD}
+      CHALL_MANAGER_URL: http://chall-manager:8080
+      REGISTRY_PREFIX: localhost:5000/challsmith
+      SCENARIO_SINGLE: registry:5000/challsmith/scenarios/single:v1
+      SCENARIO_MULTI: registry:5000/challsmith/scenarios/multi:v1
+      TEMPLATES_DIR: /app/templates
+      DATA_DIR: /var/lib/challsmith
+      # company proxy: only for challenge docker builds and git, never for service containers
+      UPSTREAM_HTTP_PROXY: ${HTTP_PROXY:-}
+      UPSTREAM_HTTPS_PROXY: ${HTTPS_PROXY:-}
+      UPSTREAM_NO_PROXY: ${NO_PROXY:-}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - app-data:/var/lib/challsmith
+    depends_on:
+      app-db:
+        condition: service_healthy
+
 volumes:
+  app-db:
+  app-data:
   ctfd-uploads:
   ctfd-db:
   cm-state:
