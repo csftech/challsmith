@@ -1,3 +1,5 @@
+import functools
+
 from fastapi import Depends, Header
 from sqlalchemy.orm import Session
 
@@ -27,6 +29,7 @@ def get_docker_ops() -> docker_client.DockerOps:
     return docker_client.DockerOps(s.upstream_http_proxy, s.upstream_https_proxy, s.upstream_no_proxy)
 
 
+@functools.lru_cache  # one logged-in session per process: CTFd throttles logins
 def get_ctfd_client() -> ctfd_client.CtfdClient:
     s = get_settings()
     return ctfd_client.CtfdClient(s.ctfd_url, s.ctfd_admin_name, s.ctfd_admin_password)

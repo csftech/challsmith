@@ -108,3 +108,38 @@ def test_transport_error_becomes_ctfd_error():
 
     with pytest.raises(ctfd_client.CtfdError):
         make(h).list_positions()
+
+
+def test_one_login_for_many_calls():
+    calls = []
+    c = make(ok_login(calls, lambda r: httpx.Response(200, json={"data": []})))
+    c.list_positions()
+    c.list_positions()
+    assert sum(1 for m, p, _ in calls if (m, p) == ("POST", "/login")) == 1
+
+
+def test_expired_session_logs_in_once_and_retries():
+    calls = []
+    state = {"expired": False, "api": 0}
+
+    def api(req):
+        state["api"] += 1
+        if state["expired"]:
+            state["expired"] = False  # the fresh session works
+            return httpx.Response(403, json={"success": False})
+        return httpx.Response(200, json={"data": []})
+
+    c = make(ok_login(calls, api))
+    c.list_positions()
+    state["expired"] = True
+    assert c.list_positions() == {}
+    assert sum(1 for m, p, _ in calls if (m, p) == ("POST", "/login")) == 2
+    assert state["api"] == 3
+
+
+def test_rate_limit_is_an_error_without_retry():
+    calls = []
+    c = make(ok_login(calls, lambda r: httpx.Response(429, text="slow down")))
+    with pytest.raises(ctfd_client.CtfdError, match="429"):
+        c.list_positions()
+    assert sum(1 for m, p, _ in calls if p.startswith("/api")) == 1

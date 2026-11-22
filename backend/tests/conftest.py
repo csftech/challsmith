@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.api import deps
 from app.core.db import get_engine
 from app.main import app
 from app.models import Base
@@ -26,4 +27,6 @@ def db():
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    deps.get_ctfd_client.cache_clear()  # never share a cached real client between tests
+    yield TestClient(app)
+    deps.get_ctfd_client.cache_clear()
