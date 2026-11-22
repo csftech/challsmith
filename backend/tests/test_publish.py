@@ -210,3 +210,11 @@ def test_delete_removes_ctfd_challenge(api, db):
     app.dependency_overrides[deps.get_ctfd_client] = lambda: fake
     assert api.delete("/challenges/c1").status_code == 200
     assert fake.deleted == [5]
+
+
+def test_delete_refused_while_publish_running(api, db):
+    api.post("/challenges", json={"slug": "c1", "template": "php", "name": "C"})
+    db.add(PublishRun(challenge_id=db.scalar(select(Challenge.id)), status="running"))
+    db.commit()
+    assert api.delete("/challenges/c1").status_code == 409
+    assert api.get("/challenges/c1").status_code == 200

@@ -22,21 +22,27 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
     if not args.yes:
         print(PLAN)
-        if input(f"Type {cleanup_service.CONFIRM} to continue: ").strip() != cleanup_service.CONFIRM:
+        try:
+            answer = input(f"Type {cleanup_service.CONFIRM} to continue: ").strip()
+        except EOFError:
+            answer = ""
+        if answer != cleanup_service.CONFIRM:
             print("aborted", file=sys.stderr)
             return 1
-    s = get_settings()
-    cm = chall_manager_client.ChallManager(s.chall_manager_url)
-    ctfd = ctfd_client.CtfdClient(s.ctfd_url, s.ctfd_admin_name, s.ctfd_admin_password)
-    docker = docker_client.DockerOps(s.upstream_http_proxy, s.upstream_https_proxy, s.upstream_no_proxy)
+    cm = None
     try:
+        s = get_settings()
+        cm = chall_manager_client.ChallManager(s.chall_manager_url)
+        ctfd = ctfd_client.CtfdClient(s.ctfd_url, s.ctfd_admin_name, s.ctfd_admin_password)
+        docker = docker_client.DockerOps(s.upstream_http_proxy, s.upstream_https_proxy, s.upstream_no_proxy)
         with Session(get_engine()) as db:
             print(cleanup_service.run_cleanup(db, cm, ctfd, docker, print))
     except Exception as e:
         print(f"cleanup failed: {e}", file=sys.stderr)
         return 1
     finally:
-        cm.close()
+        if cm is not None:
+            cm.close()
     return 0
 
 

@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,47}$")
 SERVICE_RE = re.compile(r"^[a-z0-9-]+$")
+IMAGE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/:@-]*$")
 MEMORY_RE = re.compile(r"^\d+[mg]$")
 
 
@@ -16,6 +17,13 @@ class ServiceSpec(BaseModel):
     entry: bool = False
     image: str | None = None
     env: dict[str, str] = {}
+
+    @field_validator("image")
+    @classmethod
+    def _image(cls, v: str | None) -> str | None:
+        if v is not None and not IMAGE_RE.fullmatch(v):
+            raise ValueError(f"image {v!r} must match {IMAGE_RE.pattern}")
+        return v
 
     @field_validator("name")
     @classmethod

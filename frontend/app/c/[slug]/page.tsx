@@ -90,6 +90,7 @@ export default function Editor() {
   const [sel, setSel] = useState<string | null>(null);
   const [text, setText] = useState<string | null>(null); // null = binary / not loaded
   const [dirty, setDirty] = useState(false);
+  const [saved, setSaved] = useState(""); // last loaded/saved meta, to detect unsaved form changes
   const [uploadSvc, setUploadSvc] = useState("");
   const [uploadSub, setUploadSub] = useState("");
   const want = useRef<string | null>(null); // path of the latest open() request
@@ -102,8 +103,30 @@ export default function Editor() {
   }, [slug]);
 
   useEffect(() => {
-    load().then((d) => setForm(toForm(d.meta)), (e) => setMetaMsg(e.message));
+    load().then((d) => { setForm(toForm(d.meta)); setSaved(JSON.stringify(toMeta(toForm(d.meta)))); }, (e) => setMetaMsg(e.message));
   }, [load]);
+
+  const unsaved = dirty || (form != null && JSON.stringify(toMeta(form)) !== saved);
+  useEffect(() => {
+    if (!unsaved) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    // capture phase: runs before Next's Link handler, so cancelling here stops the navigation
+    const click = (e: MouseEvent) => {
+      const a = (e.target as Element).closest("a[href]");
+      if (!a || a.getAttribute("target") === "_blank") return;
+      const publish = a.getAttribute("href")?.endsWith("/publish");
+      if (publish ? (alert("有未儲存的修改，請先儲存再發佈"), true) : !confirm("有未儲存的修改，確定要離開？")) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener("beforeunload", warn);
+    document.addEventListener("click", click, true);
+    return () => {
+      window.removeEventListener("beforeunload", warn);
+      document.removeEventListener("click", click, true);
+    };
+  }, [unsaved]);
 
   if (!form) return <main><div className="error">{metaMsg || "載入中…"}</div></main>;
   const { meta, svcs } = form;
@@ -118,6 +141,7 @@ export default function Editor() {
       await api(`/challenges/${slug}${prune ? "?prune=true" : ""}`, jsonInit("PUT", toMeta(form!)));
       const d = await load();
       setForm(toForm(d.meta));
+      setSaved(JSON.stringify(toMeta(toForm(d.meta))));
       setMetaMsg("已儲存");
     } catch (e) {
       const orphans = e instanceof ApiError && e.status === 409 ? (e.detail as { orphans?: string[] })?.orphans : null;

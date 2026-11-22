@@ -74,6 +74,7 @@ Open `http://127.0.0.1:3000` in the VM's browser and log in with `WEB_ADMIN_USER
 1. Create: choose a slug (lowercase letters, digits and `-`, at most 48 characters), a name and a template. The app creates the challenge with the template's files.
 2. Edit: change the settings (category, tags, description, points, flag, protocol, resource limits, services) and the files. Files live under `services/<service>/`, and a service without an `image` is built from its `Dockerfile`. You can edit a file in the browser, or upload a file or a `.zip` into a service folder. A file with mixed or lone-CR line endings, or one that is not UTF-8, is read-only in the editor; edit it by uploading a replacement.
 3. Publish: the app builds the service images, pushes them to `localhost:5000` and creates the CTFd challenge, or updates the same one if it was published before. A service that uses an official image (for example `mariadb:11.8`) is copied to `localhost:5000/challsmith/mirror/<name>:<tag>`.
+   Publishing writes the build-context files as `0644` and directories as `0755`, so run scripts with `sh script` or `chmod +x` them in the `Dockerfile`.
 4. Read the publish log, which shows the docker output. If a build or push fails, publishing stops there, CTFd is not touched and the published version stays as it was.
 
 A challenge is `draft` (never published), `modified` (changed since the last publish) or `published`. Deleting a challenge also deletes its CTFd challenge and instances. Publishing a challenge whose CTFd challenge was deleted by hand creates a new one. Every instance gets its flag in the `FLAG` environment variable, see "How the image reads the flag".
@@ -99,13 +100,13 @@ Both are on the Sync page of the web app.
 | State | Meaning | Apply does |
 |---|---|---|
 | `new` | Only in the source | Creates it |
-| `unchanged` | Same in both | Moves the base |
+| `unchanged` | Same in both | Moves the base (git only) |
 | `source_changed` | Only the source changed | Overwrites the database |
 | `db_changed` | Only the database changed | Nothing |
 | `conflict` | Both changed | You choose `source` or `db` for each one, and apply is refused until you do |
 
   A challenge that fails validation is shown as `invalid` and skipped. Apply refuses if a challenge changed after the preview.
-- Download backup: a `.tar.gz` of all challenges. It does not move the comparison base, because the file may never be imported anywhere. If it did, a later import from git would treat your changes as already exported and overwrite them with the old copy.
+- Download backup: a `.tar.gz` of all challenges. It does not move the comparison base, because the file may never be imported anywhere. Importing a backup does not move it either: the base follows git only (git export and git import), so a backup can carry content older than the base, and moving the base to it would let a later git import overwrite newer content without asking. Applying a backup writes the content you chose and leaves the base as it was.
 
 ## Cleanup before release
 
@@ -212,6 +213,6 @@ The Pulumi logs are in the `cm-pulumi` volume, mounted at `/var/lib/pulumi` in c
 - The VM itself can reach the container networks, so `ops` is blocked by an nftables table `inet challsmith_ops` (`/etc/challsmith/ops-firewall.nft`, loaded at boot by `challsmith-ops-firewall.service`). It rejects all `ops` traffic into the Docker bridges (`docker0`, `br-*`, including the per-instance networks) and to the registry port 5000 and the web app port 3000 on loopback. `ops` still reaches CTFd on 127.0.0.1:8000 and the instance ports, which go through Docker's root-owned port proxy. Without this, `ops` could call the unauthenticated chall-manager API and read every instance flag, read the CTFd sessions in redis, or push a scenario to the registry that chall-manager would run with `docker.sock`.
 - The firewall fails closed: `challsmith-ops-firewall.service` expires the `ops` account before loading the rules and unlocks it only after they loaded, so `ops` cannot log in if the load fails (`aps` is not affected). Docker keeps the per-instance `challenge-*` networks apart from the compose network; `tests/ops-isolation.sh` verifies it.
 - Before exporting the VM, run the cleanup (see "Cleanup before release"). `scripts/cleanup.sh` runs the cleanup CLI in the `api` container and asks for confirmation.
-- Web app login: one account from `challsmith.env`, checked in constant time. A session is a random token in an `HttpOnly`, `SameSite=Strict` cookie that lasts 12 hours, and only its BLAKE3 hash is stored, so the database cannot be used to log in. The browser talks only to `web`, which calls `api` for it, and `api` checks the session on every endpoint except login, so `web` is not the only guard. Writes need an `Origin` of `http://127.0.0.1:3000` or `http://localhost:3000`, a `Host` outside `WEB_ALLOWED_HOSTS` is refused, and the `/api/auth/*` routes cannot be reached from the browser.
+- Web app login: one account from `challsmith.env`, checked in constant time. A session is a random token in an `HttpOnly`, `SameSite=Strict` cookie that lasts 12 hours, and only its BLAKE3 hash is stored, so the database cannot be used to log in. The browser talks only to `web`, which calls `api` for it, and `api` checks the session on every endpoint except login, so `web` is not the only guard. Writes need an `Origin` whose host equals the request's `Host`, and that `Host` must be in `WEB_ALLOWED_HOSTS` (a request with any other `Host` is refused), and the `/api/auth/*` routes cannot be reached from the browser.
 - `api` mounts `docker.sock`, so a login to the web app is root-equivalent on the VM. The firewall therefore blocks `ops` from port 3000 as well, and if the firewall fails to load, the `ops` account stays expired.
 - The firewall relies on Docker's userland proxy (the default). With `"userland-proxy": false` in `daemon.json`, loopback traffic to published ports is routed into the bridges and `ops` loses CTFd too, so keep the default.

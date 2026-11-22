@@ -338,14 +338,14 @@ challsmith/
     - `src == base` → `db_changed`
     - 其他 → `conflict`（包括 `base` 為 null、兩邊都有而且不同）
   - `sync.preview(db, source: dict[str, dict[str, bytes]]) -> dict`：每題用 `from_folder` 解析並算 hash，解析失敗的題目列為 `invalid` 並附錯誤訊息，不影響其他題。把來源內容與分類結果存在行程記憶體的預覽表，key 是隨機的 `preview_id`，30 分鐘後失效。回傳 `{"preview_id", "items": [{"slug", "status", "error"?}]}`。只存在資料庫、來源沒有的題目不列出。
-  - `sync.apply(db, preview_id, decisions: dict[str, Literal["source","db"]], kind: Literal["git","archive"]) -> dict`：每個 `conflict` 都必須有決定，缺少時回 400 且不寫入任何東西。套用前重新計算每題資料庫目前的 hash，與預覽時不同就整批回 409，請作者重新預覽。規則：
+  - `sync.apply(db, preview_id, decisions: dict[str, Literal["source","db"]], kind: Literal["git","archive"]) -> dict`：每個 `conflict` 都必須有決定，缺少時回 400 且不寫入任何東西。套用前重新計算每題資料庫目前的 hash，與預覽時不同就整批回 409，請作者重新預覽。規則（以下 `sync_hash` 的設定只適用於 git 來源，備份來源一律不動 `sync_hash`）：
     - `new`、`source_changed`、選 `source` 的 `conflict`：寫入來源版本，`sync_hash` 設為來源的 hash
     - `unchanged`：`sync_hash` 設為該 hash
     - 選 `db` 的 `conflict`：`sync_hash` 設為來源的 hash，下次比對時就會判定為 `db_changed`
     - `db_changed`：不動
     - `invalid`：跳過
   - 匯入只寫資料庫，不發佈到 CTFd。
-  - 基準 hash 的更新規則：git 匯出、git 匯入、備份匯入都會更新 `sync_hash`，**下載備份不更新**。下載的備份可能不會再匯入任何地方，如果它也更新基準，之後 git 上的舊版會被判定成「只有 git 改過」而蓋掉資料庫的修改。
+  - 基準 hash 的更新規則：只有 git 匯入與 git 匯出會更新 `sync_hash`，**備份下載與備份匯入都不更新**（備份匯入只寫入內容，`new` 的題目 `sync_hash` 維持 null）。原因：`sync_hash` 只代表 git 的狀態，備份可能含有比基準更舊的內容，如果基準跟著移動，之後從 git 匯入時，舊版會被判定成「只有 git 改過」而蓋掉較新的內容。
   - 路由：`GET`、`PUT /settings/git`；`POST /sync/git/export` body `{"push": bool}`，匯出所有題目，成功 commit 後把每題的 `sync_hash` 設為目前的 hash；`POST /sync/git/preview`；`POST /sync/archive/preview`（multipart `file`，上限 100 MiB）；`POST /sync/apply` body `{"preview_id", "decisions"}`（`kind` 由預覽記錄）；`GET /backup` 回 `application/gzip`，檔名 `challsmith-backup-<UTC 時間>.tar.gz`。
 
 - [ ] **Step 1：寫失敗的測試**

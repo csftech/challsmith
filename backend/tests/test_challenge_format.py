@@ -44,6 +44,9 @@ def _svc(**kw):
     {"instance": {"memory": "256"}},
     {"slug": "abc\n"},
     {"instance": {"memory": "256m\n"}},
+    {"scenario": "multi", "services": [_svc(entry=True), _svc(name="b", image="--help")]},
+    {"scenario": "multi", "services": [_svc(entry=True), _svc(name="b", image="nginx x")]},
+    {"scenario": "multi", "services": [_svc(entry=True), _svc(name="b", image="nginx\n")]},
 ])
 def test_validation_errors(patch):
     meta = challenge_schema.parse_challenge_yml(SPEC).model_dump(mode="json") | patch

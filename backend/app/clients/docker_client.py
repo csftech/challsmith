@@ -41,13 +41,13 @@ class DockerOps:
         self._run(cmd, log, " ".join(redacted))
 
     def push(self, tag: str, log: Log) -> None:
-        self._run(["docker", "push", tag], log)
+        self._run(["docker", "push", "--", tag], log)
 
     def pull(self, image: str, log: Log) -> None:
-        self._run(["docker", "pull", image], log)
+        self._run(["docker", "pull", "--", image], log)
 
     def tag(self, src: str, dst: str, log: Log) -> None:
-        self._run(["docker", "tag", src, dst], log)
+        self._run(["docker", "tag", "--", src, dst], log)
 
     def remove_containers(self, name_prefix: str, log: Log) -> int:
         ids = self._run(["docker", "ps", "-a", "-q", "--filter", f"name=^{name_prefix}"], log, quiet=True)

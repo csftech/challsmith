@@ -153,27 +153,29 @@ def test_apply_rejects_stale_preview(api, db):
     assert challenge_service.load_challenge(db, "c1")[1].name == "third"
 
 
-def test_conflict_choose_source_writes_and_sets_base(api, db):
+def test_conflict_choose_source_writes_and_keeps_base(api, db):
     data, src = conflict_setup(api, db)
+    base = sync_hash(db)
     pid = archive_preview(api, data).json()["preview_id"]
     assert api.post("/sync/apply", json={"preview_id": pid, "decisions": {"c1": "source"}}).status_code == 200
     db.expire_all()
     assert challenge_service.load_challenge(db, "c1")[1].name == "src-side"
-    assert sync_hash(db) == folder_hash(src)
+    assert sync_hash(db) == base  # archives never move the git base
     # the preview is single use
     assert api.post("/sync/apply", json={"preview_id": pid, "decisions": {"c1": "source"}}).status_code == 404
 
 
-def test_conflict_keep_db_then_db_changed(api, db):
+def test_conflict_keep_db_keeps_base(api, db):
     data, _ = conflict_setup(api, db)
+    base = sync_hash(db)
     pid = archive_preview(api, data).json()["preview_id"]
     assert api.post("/sync/apply", json={"preview_id": pid, "decisions": {"c1": "db"}}).status_code == 200
     db.expire_all()
     assert challenge_service.load_challenge(db, "c1")[1].name == "db-side"
-    assert archive_preview(api, data).json()["items"][0]["status"] == "db_changed"
+    assert sync_hash(db) == base
 
 
-def test_new_challenge_imported_with_base(api, db):
+def test_new_challenge_from_archive_has_no_base(api, db):
     make(api)
     folder = folder_of(db)
     data = archive_util.make_tar_gz({"c1": folder})
@@ -182,7 +184,39 @@ def test_new_challenge_imported_with_base(api, db):
     pv = archive_preview(api, data).json()
     assert pv["items"][0]["status"] == "new"
     assert api.post("/sync/apply", json={"preview_id": pv["preview_id"], "decisions": {}}).status_code == 200
-    assert sync_hash(db) == folder_hash(folder)
+    assert sync_hash(db) is None
+
+
+def test_archive_apply_keeps_base_for_source_changed_and_unchanged(api, db):
+    make(api)
+    make(api, "c2")
+    c1, c2 = folder_of(db), folder_of(db, "c2")
+    set_base(db, "old1")
+    set_base(db, "old2", "c2")
+    data = archive_util.make_tar_gz({"c1": rename(c1, "newer"), "c2": c2})
+    set_base(db, folder_hash(c1))  # c1: db == base, src differs -> source_changed
+    pv = archive_preview(api, data).json()
+    assert {i["slug"]: i["status"] for i in pv["items"]} == {"c1": "source_changed", "c2": "unchanged"}
+    assert api.post("/sync/apply", json={"preview_id": pv["preview_id"], "decisions": {}}).status_code == 200
+    assert challenge_service.load_challenge(db, "c1")[1].name == "newer"
+    assert sync_hash(db) == folder_hash(c1) and sync_hash(db, "c2") == "old2"
+
+
+def test_backup_import_does_not_let_git_overwrite_newer_content(api, db, tmp_path):
+    make(api)
+    h1 = folder_of(db)
+    configure(api, bare(tmp_path))
+    assert api.post("/sync/git/export", json={"push": True}).json()["pushed"] is True  # home: base H1
+    data = archive_util.make_tar_gz({"c1": rename(h1, "h2")})  # the company's backup, content H2
+    pv = archive_preview(api, data).json()
+    assert pv["items"][0]["status"] == "source_changed"
+    assert api.post("/sync/apply", json={"preview_id": pv["preview_id"], "decisions": {}}).status_code == 200
+    assert challenge_service.load_challenge(db, "c1")[1].name == "h2"
+    pv = api.post("/sync/git/preview").json()
+    assert pv["items"][0]["status"] == "db_changed"
+    assert api.post("/sync/apply", json={"preview_id": pv["preview_id"], "decisions": {}}).status_code == 200
+    db.expire_all()
+    assert challenge_service.load_challenge(db, "c1")[1].name == "h2"
 
 
 def test_backup_download_keeps_base(api, db, tmp_path):

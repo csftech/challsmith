@@ -9,7 +9,7 @@ from app.clients.ctfd_client import CtfdError, CtfdNotFound
 from app.utils import archive_util, hash_util
 from app.schemas import challenge_schema
 from app.models import Challenge
-from app.repositories import challenge_repository
+from app.repositories import challenge_repository, publish_run_repository
 from app.services import template_service
 from app.services.errors import BadGateway, BadRequest, Conflict, NotFound, TooLarge, Unprocessable
 
@@ -59,6 +59,8 @@ def status_of(challenge: Challenge, current: str) -> dict:
 
 
 def delete_challenge(db: Session, ch: Challenge, ctfd: ctfd_client.CtfdClient) -> None:
+    if publish_run_repository.get_running(db, ch) is not None:
+        raise Conflict("a publish is running for this challenge; wait for it to finish before deleting")
     if ch.ctfd_id is not None:
         try:
             ctfd.delete_challenge(ch.ctfd_id)

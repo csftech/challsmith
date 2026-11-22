@@ -128,7 +128,8 @@ def _prune() -> None:  # caller holds _previews_lock
         del _previews[k]
 
 
-def preview(db: Session, source: dict[str, dict[str, bytes]], invalid: dict[str, str] | None = None) -> dict:
+def preview(db: Session, source: dict[str, dict[str, bytes]], invalid: dict[str, str] | None = None,
+            kind: str = "git") -> dict:
     items, stored = [], {}
     for slug, err in sorted((invalid or {}).items()):
         items.append({"slug": slug, "status": "invalid", "error": err})
@@ -155,7 +156,7 @@ def preview(db: Session, source: dict[str, dict[str, bytes]], invalid: dict[str,
         _prune()
         while len(_previews) >= MAX_PREVIEWS:
             del _previews[next(iter(_previews))]  # oldest first
-        _previews[pid] = {"expires": time.monotonic() + PREVIEW_TTL, "items": stored}
+        _previews[pid] = {"expires": time.monotonic() + PREVIEW_TTL, "items": stored, "kind": kind}
     return {"preview_id": pid, "items": items}
 
 
@@ -184,7 +185,7 @@ def archive_preview(db: Session, data: bytes) -> dict:
         if len(parts) != 3 or parts[0] != "challenges":
             raise BadRequest(f"unexpected path in archive: {path!r} (only challenges/<slug>/... is allowed)")
         source.setdefault(parts[1], {})[parts[2]] = content
-    return preview(db, source)
+    return preview(db, source, kind="archive")
 
 
 def apply(db: Session, preview_id: str, decisions: dict[str, str]) -> dict:
@@ -220,7 +221,8 @@ def apply(db: Session, preview_id: str, decisions: dict[str, str]) -> dict:
             db.flush()
         elif status not in ("unchanged", "keep_db"):
             continue  # db_changed or invalid: nothing to do
-        challenge_repository.update_by_slug(db, slug, {"sync_hash": it["src_hash"]})
+        if pv["kind"] == "git":  # sync_hash tracks git only; an archive may carry older content than the base
+            challenge_repository.update_by_slug(db, slug, {"sync_hash": it["src_hash"]})
         applied.append(slug)
     db.commit()
     with _previews_lock:

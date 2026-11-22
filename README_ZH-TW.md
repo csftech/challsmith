@@ -74,6 +74,7 @@ plugin 版本從 `scenarios/go.mod` 讀取（pulumi-docker v5.3.0），自行提
 1. 建立：填入 slug（小寫字母、數字與 `-`，最長 48 個字元）、名稱並選一個範本，app 會用範本的檔案建立題目。
 2. 編輯：修改題目的設定（分類、標籤、說明、分數、flag、protocol、資源上限、服務）與檔案。檔案放在 `services/<service>/` 底下，沒有設定 `image` 的服務會用它的 `Dockerfile` build。可以直接在瀏覽器編輯檔案，也可以把檔案或 `.zip` 上傳到服務的資料夾。換行符號混用或只有 CR 的檔案，以及不是 UTF-8 的檔案，在編輯器裡是唯讀的，請上傳新檔案來取代。
 3. 發佈：app 會 build 各服務的 image 並推到 `localhost:5000`，然後建立 CTFd 題目，如果之前發佈過，就更新同一個題目。使用官方 image 的服務（例如 `mariadb:11.8`）會複製到 `localhost:5000/challsmith/mirror/<名稱>:<tag>`。
+   發佈時 build context 裡的檔案權限是 `0644`、資料夾是 `0755`，所以腳本要用 `sh script` 執行，或在 `Dockerfile` 裡 `chmod +x`。
 4. 查看發佈 log，裡面有 docker 的輸出。build 或 push 失敗時，發佈會停在那一步，不會動到 CTFd，已發佈的版本維持原樣。
 
 題目的狀態有 `draft`（從未發佈）、`modified`（上次發佈後有修改）與 `published`。刪除題目時，它在 CTFd 的題目與 instance 也會一併刪除，而如果 CTFd 上的題目被手動刪掉，再發佈時會建立新的題目。每個 instance 的 flag 都放在環境變數 `FLAG`，見「題目 image 怎麼讀 flag」。
@@ -99,13 +100,13 @@ plugin 版本從 `scenarios/go.mod` 讀取（pulumi-docker v5.3.0），自行提
 | 狀態 | 意思 | 套用時 |
 |---|---|---|
 | `new` | 只存在於來源 | 建立題目 |
-| `unchanged` | 兩邊相同 | 移動基準 |
+| `unchanged` | 兩邊相同 | 移動基準（僅限 git） |
 | `source_changed` | 只有來源改過 | 以來源覆蓋資料庫 |
 | `db_changed` | 只有資料庫改過 | 不做任何事 |
 | `conflict` | 兩邊都改過 | 每個題目都要選 `source` 或 `db`，沒選就不能套用 |
 
   驗證不通過的題目會顯示為 `invalid` 並被略過。預覽之後如果有題目被改動，套用會被拒絕。
-- 下載備份：把所有題目打包成 `.tar.gz`。它不會移動比對基準，因為這個檔案可能根本不會被匯入到任何地方。如果它會移動基準，之後從 git 匯入時，就會把你的修改當成已經匯出，而用舊版覆蓋掉。
+- 下載備份：把所有題目打包成 `.tar.gz`。它不會移動比對基準，因為這個檔案可能根本不會被匯入到任何地方。匯入備份也不會移動基準，因為基準只跟著 git（git 匯出與 git 匯入）走。備份裡可能是比基準更舊的內容，如果基準跟著移過去，之後從 git 匯入時，就會不經詢問地用舊版覆蓋掉較新的內容。套用備份只會寫入你選擇的內容，基準維持原樣。
 
 ## 發佈前清理
 
@@ -212,6 +213,6 @@ Pulumi 的 log 放在 `cm-pulumi` volume，也就是 chall-manager 內的 `/var/
 - VM 本身連得到 container 的網路，所以用 nftables 的 `inet challsmith_ops` 表擋住 `ops`（`/etc/challsmith/ops-firewall.nft`，開機時由 `challsmith-ops-firewall.service` 載入）。它拒絕 `ops` 送進 Docker bridge（`docker0`、`br-*`，包含每個 instance 專屬的 network）的所有流量，以及送往 loopback 上 registry port 5000 與 web app port 3000 的流量。`ops` 仍然連得到 127.0.0.1:8000 的 CTFd 與 instance 的 port，因為這些連線經過 Docker 以 root 執行的 port proxy。少了這道防火牆，`ops` 就能呼叫不需登入的 chall-manager API 讀到每個 instance 的 flag、讀取 redis 裡的 CTFd session，或是推一個 scenario 到 registry，讓 chall-manager 帶著 `docker.sock` 執行。
 - 防火牆採失敗即關閉：`challsmith-ops-firewall.service` 先讓 `ops` 帳號過期，規則載入成功後才解鎖，所以載入失敗時 `ops` 無法登入（`aps` 不受影響）。Docker 會把每個 instance 專屬的 `challenge-*` 網路與 compose 網路隔開，`tests/ops-isolation.sh` 會驗證這點。
 - 匯出 VM 之前，請先執行清理（見「發佈前清理」）。`scripts/cleanup.sh` 會在 `api` container 內執行清理指令並要求確認。
-- web app 的登入：只有 `challsmith.env` 裡的一個帳號，以固定時間比對。session 是放在 `HttpOnly`、`SameSite=Strict` cookie 裡的隨機 token，效期 12 小時，資料庫只存它的 BLAKE3 雜湊值，所以拿到資料庫也無法登入。瀏覽器只會連到 `web`，由 `web` 代為呼叫 `api`，而 `api` 除了登入以外的每個端點都會自己驗證 session，所以擋住請求的並不是只有 `web`。寫入請求的 `Origin` 必須是 `http://127.0.0.1:3000` 或 `http://localhost:3000`，`Host` 不在 `WEB_ALLOWED_HOSTS` 內的請求會被拒絕，瀏覽器也無法連到 `/api/auth/*` 這些路由。
+- web app 的登入：只有 `challsmith.env` 裡的一個帳號，以固定時間比對。session 是放在 `HttpOnly`、`SameSite=Strict` cookie 裡的隨機 token，效期 12 小時，資料庫只存它的 BLAKE3 雜湊值，所以拿到資料庫也無法登入。瀏覽器只會連到 `web`，由 `web` 代為呼叫 `api`，而 `api` 除了登入以外的每個端點都會自己驗證 session，所以擋住請求的並不是只有 `web`。寫入請求的 `Origin` 其 host 必須與請求的 `Host` 相同，而且這個 `Host` 必須在 `WEB_ALLOWED_HOSTS` 內，`Host` 不在其中的請求會被拒絕，瀏覽器也無法連到 `/api/auth/*` 這些路由。
 - `api` 掛載了 `docker.sock`，所以登入 web app 就等於取得這台 VM 的 root 權限。因此防火牆同樣擋住 `ops` 連往 3000 port，而且防火牆載入失敗時，`ops` 帳號會維持過期狀態。
 - 這道防火牆要靠 Docker 預設的 userland proxy 才能運作。如果在 `daemon.json` 設了 `"userland-proxy": false`，loopback 上連往對外 port 的流量會被轉進 bridge，`ops` 連 CTFd 也會被擋，所以請維持預設值。
