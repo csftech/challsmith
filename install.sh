@@ -89,7 +89,7 @@ install -m 644 "$SRC/infra/firewall/challsmith-ops-firewall.service" /etc/system
 systemctl daemon-reload
 systemctl enable challsmith-ops-firewall.service
 systemctl restart challsmith-ops-firewall.service
-# 5c. boot reset: delete stale instances after a reboot (enabled, not started now; failures never block other units)
+# 5c. instance reset at boot and on every Docker start (enabled, not started now; failures never block other units)
 install -m 644 "$SRC/infra/boot/challsmith-boot-reset.service" /etc/systemd/system/challsmith-boot-reset.service
 systemctl daemon-reload
 systemctl enable challsmith-boot-reset.service
@@ -216,11 +216,12 @@ dc restart chall-manager >/dev/null
 # verify_sha256 <file> <expected sha256 | "">: empty expected = warn and skip; mismatch aborts.
 verify_sha256() {
   local f=$1 want=$2 got
-  if [ -z "$want" ]; then echo "WARNING: no BURP_SHA256 for a custom BURP_DOWNLOAD_URL, skipping checksum verification." >&2; return 0; fi
+  if [ -z "$want" ]; then echo "WARNING: no BURP_SHA256 for a custom BURP_DOWNLOAD_URL or BURP_VERSION, skipping checksum verification." >&2; return 0; fi
   got="$(sha256sum "$f" | cut -d' ' -f1)"
   [ "$want" = "$got" ] || { echo "Checksum mismatch for Burp Suite (expected '$want', got $got), aborting." >&2; exit 1; }
 }
 # challsmith.env files copied from the old example pin the Community download URL: treat it as unset
+# shortcut: only the quoted old line is detected; an unquoted one is cut at the & when sourced, so it is already unset (no notice), fine unless the URL form changes
 case "${BURP_DOWNLOAD_URL:-}" in
   "https://portswigger.net/burp/releases/download?product=community&type=Linux")
     echo "Ignoring the old Burp Suite Community BURP_DOWNLOAD_URL in challsmith.env, using the pinned default."

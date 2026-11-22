@@ -44,7 +44,7 @@ Ubuntu 26.04 VM
 
 預設不限制 mana：`CM_MANA_TOTAL=0` 時 CTFd plugin 會忽略 mana，新人可以同時開任意數量題目的 instance。web app 裡每個題目的 `mana` 欄位（預設 0）只有在 `CM_MANA_TOTAL` 設為正整數時才有作用，此時同一位使用者所有執行中 instance 的 mana 總和不能超過它。既有的安裝是從舊範例複製了 `CM_MANA_TOTAL=5`，請在 `challsmith.env` 改成 `0` 並重新執行 `sudo ./install.sh` 來解除限制。
 
-如果 `challsmith.env` 裡還留著舊範例的 Burp Suite Community 下載網址 `BURP_DOWNLOAD_URL`（`product=community` 那一行），安裝程式會忽略它、顯示一行提示，並改用固定的預設網址；把那一行刪掉就不會再有提示。
+如果 `challsmith.env` 裡還留著舊範例的 Burp Suite Community 下載網址 `BURP_DOWNLOAD_URL`（`product=community` 那一行），安裝程式會忽略它並改用固定的預設網址，偵測得到舊那一行時會顯示提示（沒有加引號的那一行，讀檔時會在 `&` 被截斷，本來就等於沒設定，所以不會有提示）；把那一行刪掉最保險。
 
 如果在 CTFd 裡改了管理者密碼，要把 `challsmith.env` 的 `CTFD_ADMIN_PASSWORD` 一併改掉，再重新執行 `sudo ./install.sh`，否則 web app 會連不上 CTFd。在 web app 推出之前安裝的環境，會留下過時的 `/opt/challsmith/api` 目錄，安裝程式不會刪除它，可以自行手動移除。
 
@@ -190,7 +190,7 @@ sudo tests/ops-isolation.sh
 
 ## 已知限制
 
-1. instance 不會在 VM 重開機後保留，這是刻意的設計。Docker 可能替重新啟動的 container 分配新的對外 port，CTFd 就會顯示失效的連線網址。因此 instance 的 container 以重啟策略 `no` 建立，開機時由 `challsmith-boot-reset.service`（`install.sh` 會安裝並啟用，腳本是 `infra/boot/reset-instances.sh`）最多等五分鐘，等 api 與 chall-manager 就緒後執行 `cleanup.sh --instances-only --yes`，刪除所有 chall-manager instance 與殘留的 `challenge-*` container 和 network，CTFd 使用者與 web 登入狀態則保留。新人重開機後重新開一個 instance 即可，flag 也會跟著改變。這個 unit 失敗時會記錄在 journal（`journalctl -u challsmith-boot-reset`），不會影響其他服務。
+1. instance 不會在 VM 重開機或 Docker 重新啟動後保留，這是刻意的設計。Docker 可能替重新啟動的 container 分配新的對外 port，CTFd 就會顯示失效的連線網址。因此 instance 的 container 以重啟策略 `no` 建立，開機以及每次 Docker 啟動時，由 `challsmith-boot-reset.service`（`install.sh` 會安裝並啟用，腳本是 `infra/boot/reset-instances.sh`）最多等五分鐘，等 api 與 chall-manager 就緒後執行 `cleanup.sh --instances-only --yes`，刪除所有 chall-manager instance 與殘留的 `challenge-*` container 和 network，CTFd 使用者與 web 登入狀態則保留。新人事後重新開一個 instance 即可，flag 也會跟著改變。剛開機時請先等重設完成（用 `systemctl status challsmith-boot-reset` 確認）再開 instance，因為重設期間開的 instance 可能被刪掉。這個 unit 失敗時會記錄在 journal（`journalctl -u challsmith-boot-reset`），不會影響其他服務。
 2. php 單一 container 的題目使用 `php -S`，它是單執行緒，一台 VM 只有一位新人使用時沒有問題。
 3. 拿到 vmdk 的人都能取得 root，動態 flag 只能防止新人互相抄 flag，真正的管控方式是 writeup 與口頭確認。
 4. 匯入預覽存在 api 的記憶體中，保留 30 分鐘，所以 api 重新啟動後，必須重新預覽。
