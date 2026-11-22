@@ -30,6 +30,7 @@ export default function Sync() {
   const [git, setGit] = useState<Git | null>(null);
   const [token, setToken] = useState("");
   const [gitMsg, setGitMsg] = useState("");
+  const [gitOk, setGitOk] = useState(false);
   const [push, setPush] = useState(true);
   const [exp, setExp] = useState<Exported | null>(null);
   const [expErr, setExpErr] = useState("");
@@ -37,6 +38,7 @@ export default function Sync() {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [decisions, setDecisions] = useState<Record<string, "source" | "db">>({});
   const [msg, setMsg] = useState("");
+  const [msgOk, setMsgOk] = useState(false);
 
   useEffect(() => {
     api<Git>("/settings/git").then(setGit, (e) => setGitMsg(errorText(e)));
@@ -56,6 +58,7 @@ export default function Sync() {
   async function save() {
     if (!git) return;
     setGitMsg("");
+    setGitOk(false);
     const saved = await run(
       () => api<Git>("/settings/git", jsonInit("PUT", { ...git, token: token || null })),
       setGitMsg,
@@ -64,6 +67,7 @@ export default function Sync() {
       setGit(saved);
       setToken("");
       setGitMsg(t("saved"));
+      setGitOk(true);
     }
   }
 
@@ -76,6 +80,7 @@ export default function Sync() {
 
   async function load(fn: () => Promise<Preview>) {
     setMsg("");
+    setMsgOk(false);
     setPreview(null);
     setDecisions({});
     const p = await run(fn, setMsg);
@@ -91,6 +96,7 @@ export default function Sync() {
   async function apply() {
     if (!preview) return;
     setMsg("");
+    setMsgOk(false);
     setBusy(true);
     try {
       const r = await api<{ applied: string[] }>(
@@ -99,6 +105,7 @@ export default function Sync() {
       );
       setPreview(null);
       setMsg(t("applied", { n: r.applied.length }));
+      setMsgOk(true);
     } catch (e) {
       const s = e instanceof ApiError ? e.status : 0;
       setMsg(
@@ -148,7 +155,7 @@ export default function Sync() {
               </div>
             </>
           )}
-          {gitMsg && <div className="error">{gitMsg}</div>}
+          {gitMsg && <div className={gitOk ? "note-ok" : "error"}>{gitMsg}</div>}
         </section>
 
         <section className="panel">
@@ -253,7 +260,7 @@ export default function Sync() {
               </div>
             </>
           )}
-          {msg && <div className="error">{msg}</div>}
+          {msg && <div className={msgOk ? "note-ok" : "error"}>{msg}</div>}
         </section>
 
         <section className="panel">

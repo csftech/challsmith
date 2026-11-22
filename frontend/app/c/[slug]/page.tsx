@@ -398,7 +398,7 @@ export default function Editor() {
             {t("addService")}
           </button>
 
-          {metaMsg && <div className={metaOk ? "ok" : "error"}>{metaMsg}</div>}
+          {metaMsg && <div className={metaOk ? "note-ok" : "error"}>{metaMsg}</div>}
           <p className="row">
             <button className="primary" onClick={() => saveMeta()}>{t("saveMeta")}</button>
             <button className="danger" onClick={removeChallenge}>{t("removeChallenge")}</button>
@@ -428,7 +428,7 @@ export default function Editor() {
             <input type="file" onChange={upload} />
           </div>
           <p className="muted hint">{t("zipHint")}</p>
-          {fileMsg && <div className={fileOk ? "ok" : "error"}>{fileMsg}</div>}
+          {fileMsg && <div className={fileOk ? "note-ok" : "error"}>{fileMsg}</div>}
           {sel != null && text != null && (
             <>
               <div className="row filebar">
