@@ -220,6 +220,12 @@ verify_sha256() {
   got="$(sha256sum "$f" | cut -d' ' -f1)"
   [ "$want" = "$got" ] || { echo "Checksum mismatch for Burp Suite (expected '$want', got $got), aborting." >&2; exit 1; }
 }
+# challsmith.env files copied from the old example pin the Community download URL: treat it as unset
+case "${BURP_DOWNLOAD_URL:-}" in
+  "https://portswigger.net/burp/releases/download?product=community&type=Linux")
+    echo "Ignoring the old Burp Suite Community BURP_DOWNLOAD_URL in challsmith.env, using the pinned default."
+    BURP_DOWNLOAD_URL= ;;
+esac
 BURP=/opt/BurpSuite
 BURP_DEFAULT_VERSION=2026.11.2
 BURP_VERSION="${BURP_VERSION:-$BURP_DEFAULT_VERSION}"

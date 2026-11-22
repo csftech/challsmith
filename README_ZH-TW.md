@@ -44,6 +44,8 @@ Ubuntu 26.04 VM
 
 預設不限制 mana：`CM_MANA_TOTAL=0` 時 CTFd plugin 會忽略 mana，新人可以同時開任意數量題目的 instance。web app 裡每個題目的 `mana` 欄位（預設 0）只有在 `CM_MANA_TOTAL` 設為正整數時才有作用，此時同一位使用者所有執行中 instance 的 mana 總和不能超過它。既有的安裝是從舊範例複製了 `CM_MANA_TOTAL=5`，請在 `challsmith.env` 改成 `0` 並重新執行 `sudo ./install.sh` 來解除限制。
 
+如果 `challsmith.env` 裡還留著舊範例的 Burp Suite Community 下載網址 `BURP_DOWNLOAD_URL`（`product=community` 那一行），安裝程式會忽略它、顯示一行提示，並改用固定的預設網址；把那一行刪掉就不會再有提示。
+
 如果在 CTFd 裡改了管理者密碼，要把 `challsmith.env` 的 `CTFD_ADMIN_PASSWORD` 一併改掉，再重新執行 `sudo ./install.sh`，否則 web app 會連不上 CTFd。在 web app 推出之前安裝的環境，會留下過時的 `/opt/challsmith/api` 目錄，安裝程式不會刪除它，可以自行手動移除。
 
 ### 公司網路

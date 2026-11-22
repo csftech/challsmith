@@ -44,6 +44,8 @@ You need an Ubuntu 26.04 Desktop VM with internet access, directly or through th
 
 Mana is unlimited by default: with `CM_MANA_TOTAL=0` the CTFd plugin ignores mana, and a trainee can run instances of any number of challenges at once. The per-challenge `mana` field in the web app (default 0) only matters when you set `CM_MANA_TOTAL` to a positive number, which then caps the sum of the mana of one user's running instances. Existing installs copied `CM_MANA_TOTAL=5` from the old example: change it to `0` in `challsmith.env` and rerun `sudo ./install.sh` to lift the limit.
 
+If your `challsmith.env` still has the old `BURP_DOWNLOAD_URL` for Burp Suite Community (the `product=community` URL from the previous example), the installer ignores it, prints a notice and uses the pinned default; remove that line to silence the notice.
+
 If you change the CTFd admin password in CTFd, change `CTFD_ADMIN_PASSWORD` in `challsmith.env` too and rerun `sudo ./install.sh`, otherwise the web app can no longer reach CTFd. Installs from before the web app left a stale `/opt/challsmith/api` directory; the installer does not delete it, so you can remove it by hand.
 
 ### Company network
