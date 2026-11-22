@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,47}$")
 SERVICE_RE = re.compile(r"^[a-z0-9-]+$")
 IMAGE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/:@-]*$")
+RESERVED_SLUGS = {"order"}  # would collide with PUT /challenges/order
 MEMORY_RE = re.compile(r"^\d+[mg]$")
 
 

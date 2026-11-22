@@ -131,6 +131,8 @@ def list_summaries(db: Session) -> list[dict]:
 
 
 def create_challenge(db: Session, slug: str, template: str, name: str) -> None:
+    if slug in challenge_schema.RESERVED_SLUGS:
+        raise BadRequest("slug is reserved", code="slug_reserved")
     if challenge_repository.slug_exists(db, slug):
         raise Conflict("slug already exists", code="slug_exists")
     if template not in {t.name for t in template_service.list_templates()}:

@@ -215,6 +215,8 @@ def apply(db: Session, preview_id: str, decisions: dict[str, str]) -> dict:
             meta = it["meta"].model_dump(mode="json")
             ch = challenge_repository.get_by_slug(db, slug)
             if ch is None:
+                if slug in challenge_schema.RESERVED_SLUGS:
+                    raise BadRequest(f"slug {slug!r} is reserved", code="slug_reserved")
                 challenge_repository.add(db, slug, meta, it["files"])
             else:
                 challenge_repository.replace(db, ch, meta, it["files"])

@@ -12,6 +12,7 @@ class Challenge(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     slug: Mapped[str] = mapped_column(unique=True)
     meta: Mapped[dict] = mapped_column(JSONB)
+    position: Mapped[int]
     ctfd_id: Mapped[int | None]
     published_hash: Mapped[str | None]
     sync_hash: Mapped[str | None]
