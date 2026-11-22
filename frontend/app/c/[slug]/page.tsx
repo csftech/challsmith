@@ -12,7 +12,7 @@ import { nginx } from "@codemirror/legacy-modes/mode/nginx";
 import CodeMirror from "@uiw/react-codemirror";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   api,
@@ -24,6 +24,7 @@ import {
   type Detail,
   type Meta,
 } from "@/lib/api";
+import { decode, encode, type Enc } from "@/lib/text";
 
 type SvcForm = { name: string; port: string; entry: boolean; useImage: boolean; image: string; env: string };
 type Form = { meta: Meta; tags: string; svcs: SvcForm[] };
@@ -91,6 +92,8 @@ export default function Editor() {
   const [dirty, setDirty] = useState(false);
   const [uploadSvc, setUploadSvc] = useState("");
   const [uploadSub, setUploadSub] = useState("");
+  const want = useRef<string | null>(null); // path of the latest open() request
+  const enc = useRef<Enc>({ bom: false, crlf: false });
 
   const load = useCallback(async () => {
     const d = await api<Detail>(`/challenges/${slug}`);
@@ -132,15 +135,22 @@ export default function Editor() {
   async function open(path: string) {
     if (dirty && !confirm("目前的檔案尚未儲存，要放棄修改嗎？")) return;
     setFileMsg("");
+    want.current = path;
     setSel(path);
     setDirty(false);
-    setText("");
+    setText(null); // editor stays hidden until this file has loaded
     try {
-      const buf = await (await apiRaw(fileUrl(slug, path))).arrayBuffer();
-      setText(new TextDecoder("utf-8", { fatal: true }).decode(buf));
+      const buf = new Uint8Array(await (await apiRaw(fileUrl(slug, path))).arrayBuffer());
+      if (want.current !== path) return; // a newer open() superseded this one
+      const d = decode(buf);
+      if (!d) {
+        setFileMsg("這個檔案不是 UTF-8 文字或換行符號混用，無法在此編輯（避免改動未編輯的位元組）");
+        return;
+      }
+      enc.current = d.enc;
+      setText(d.text);
     } catch (e) {
-      setText(null);
-      setFileMsg(e instanceof ApiError ? e.message : "這是二進位檔案，無法在此編輯");
+      if (want.current === path) setFileMsg((e as Error).message);
     }
   }
 
@@ -150,7 +160,7 @@ export default function Editor() {
       await apiRaw(fileUrl(slug, sel), {
         method: "PUT",
         headers: { "Content-Type": "application/octet-stream" },
-        body: text,
+        body: encode(text, enc.current) as BodyInit,
       });
       setDirty(false);
       setFileMsg("已儲存");
@@ -163,6 +173,7 @@ export default function Editor() {
   async function addFile() {
     const path = prompt("新檔案路徑（例如 services/web/app.py）");
     if (!path) return;
+    if (files.some((f) => f.path === path)) return open(path); // never truncate an existing file
     try {
       await apiRaw(fileUrl(slug, path), { method: "PUT", body: "" });
       await load();
@@ -176,6 +187,7 @@ export default function Editor() {
     if (sel == null || !confirm(`確定刪除 ${sel}？`)) return;
     try {
       await apiRaw(fileUrl(slug, sel), { method: "DELETE" });
+      want.current = null;
       setSel(null);
       setText(null);
       setDirty(false);

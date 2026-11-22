@@ -11,7 +11,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run typecheck && npm run build
+RUN npm run typecheck && npm test && npm run build
 
 FROM node:26.13.1-alpine3.24 AS runtime
 WORKDIR /app

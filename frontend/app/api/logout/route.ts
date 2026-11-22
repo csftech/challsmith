@@ -1,9 +1,10 @@
 import type { NextRequest } from "next/server";
 
-import { API_URL, COOKIE, json, sameOrigin } from "@/lib/bff";
+import { API_URL, COOKIE, guard, json } from "@/lib/bff";
 
 export async function POST(req: NextRequest) {
-  if (!sameOrigin(req)) return json({ detail: "bad origin" }, 403);
+  const denied = guard(req);
+  if (denied) return denied;
   const token = req.cookies.get(COOKIE)?.value;
   if (token) {
     await fetch(`${API_URL}/auth/logout`, {

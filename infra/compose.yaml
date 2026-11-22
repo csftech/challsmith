@@ -188,6 +188,8 @@ services:
     environment:
       <<: *no-proxy
       API_URL: http://api:8000
+      # Host header allow-list (DNS-rebinding guard); add the VM hostname here when reaching it remotely
+      ALLOWED_HOSTS: ${WEB_ALLOWED_HOSTS:-localhost:3000,127.0.0.1:3000}
     ports:
       - 127.0.0.1:3000:3000
     depends_on:

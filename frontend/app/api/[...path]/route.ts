@@ -1,14 +1,18 @@
 import type { NextRequest } from "next/server";
 
-import { API_URL, COOKIE, json, sameOrigin } from "@/lib/bff";
+import { API_URL, COOKIE, guard, json } from "@/lib/bff";
 
 type Ctx = { params: Promise<{ path: string[] }> };
 
 async function forward(req: NextRequest, ctx: Ctx) {
-  if (!sameOrigin(req)) return json({ detail: "bad origin" }, 403);
+  const denied = guard(req);
+  if (denied) return denied;
+  const { path } = await ctx.params;
+  if (path.some((s) => s === "." || s === ".." || s.includes("/"))) return json({ detail: "bad path" }, 400);
+  // login/logout only through their own routes, so the raw token never reaches the browser
+  if (path[0].toLowerCase() === "auth") return json({ detail: "forbidden" }, 403);
   const token = req.cookies.get(COOKIE)?.value;
   if (!token) return json({ detail: "not logged in" }, 401);
-  const { path } = await ctx.params;
   const headers: Record<string, string> = { Authorization: `Bearer ${token}` }; // never forward Cookie
   const type = req.headers.get("content-type");
   if (type) headers["Content-Type"] = type;
