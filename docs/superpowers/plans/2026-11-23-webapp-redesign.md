@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 出題 web app 換上可切換四種主題的新介面、支援列表與資訊卡切換、題目順序與 CTFd 一致並可拖拉同步，以及繁中與英文切換。
+**Goal:** 出題 web app 換上可切換五種主題的新介面、支援列表與資訊卡切換、題目順序與 CTFd 一致並可拖拉同步，以及繁中與英文切換。
 
 **Architecture:** 後端在 `challenges` 表加 `position`，排序規則集中在新的 `order_service` 純函式，`GET /challenges` 依 CTFd 校正順序，`PUT /challenges/order` 寫入資料庫與 CTFd，錯誤回應加上固定的 `code`。前端以 next-intl（cookie、不帶網址前綴）處理語言，以 `<html data-theme>` 加 CSS 變數處理主題，共用側欄版面，題目頁用 `@dnd-kit` 做兩層排序。
 
@@ -15,8 +15,8 @@
 - 分支 `feat/webapp-redesign`，每個 task 一個以上 commit，結尾加 `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`，LF 行尾，不 push。
 - 套件版本固定到確切數字：`next-intl` 4.15.3、`@dnd-kit/core` 6.3.1、`@dnd-kit/sortable` 10.0.0、`@dnd-kit/utilities` 3.2.2、`@fontsource/ibm-plex-sans` 5.3.0、`@fontsource/ibm-plex-mono` 5.3.0、`@fontsource/inter` 5.3.0、`@fontsource/noto-sans-tc` 5.3.1。不引入 Tailwind 或元件庫。
 - 後端分層：api/routes → services → repositories／clients；只有 repositories 碰資料庫，services 負責 commit，只有 clients 呼叫 CTFd 或執行子程序；跨層用模組匯入，名稱帶層級後綴（`order_service`、`challenge_repository`、`ctfd_client`），不用 `as`。
-- 主題 id：`signal`（預設）、`zinc`、`midnight`、`canvas`；cookie `theme`。語言：`zh-TW`（預設）、`en`；cookie `NEXT_LOCALE`。
-- 主題的顏色、框線、圓角、字體數值以 mockup `visual-style-v2.html` 的 CSS 為準，卡片版面以 `card-view.html` 第 1 種為準。
+- 主題 id：`signal`（預設）、`zinc`、`midnight`、`canvas`、`frost`；cookie `theme`。語言：`zh-TW`（預設）、`en`；cookie `NEXT_LOCALE`。
+- 主題的顏色、框線、圓角、字體數值以 mockup 的 CSS 為準：`signal`/`zinc`/`midnight`/`canvas` 取自 `visual-style-v2.html` 的 G/D/E/F，`frost` 取自 `theme-5.html` 的 I；卡片版面以 `card-view.html` 第 1 種為準。
 - 不翻譯 docker build 與工具輸出、CLI 輸出；後端 `detail` 維持英文。
 - README 與 README_ZH-TW 內容同步；中文以 `py "C:/Users/csf/.claude/skills/zh-tw-writing/scripts/check_zh.py" README_ZH-TW.md` 檢查。
 - 不讀取任何 `.env` 或 `challsmith.env`。
@@ -127,17 +127,17 @@
 - Delete: `frontend/app/nav.tsx`（由 `shell.tsx` 取代）
 
 **Interfaces:**
-- Produces（`lib/prefs.ts`，純函式）：`THEMES = ["signal","zinc","midnight","canvas"] as const`、`type Theme`、`pickTheme(v: string | undefined): Theme`（不合法 → `"signal"`）；`LOCALES = ["zh-TW","en"] as const`、`type Locale`、`pickLocale(v: string | undefined): Locale`（不合法 → `"zh-TW"`）。
+- Produces（`lib/prefs.ts`，純函式）：`THEMES = ["signal","zinc","midnight","canvas","frost"] as const`、`type Theme`、`pickTheme(v: string | undefined): Theme`（不合法 → `"signal"`）；`LOCALES = ["zh-TW","en"] as const`、`type Locale`、`pickLocale(v: string | undefined): Locale`（不合法 → `"zh-TW"`）。
 - Produces（`lib/api.ts`）：`ApiError` 多一個 `code?: string`；`apiRaw` 從回應讀 `code`。新增 `errorText(e: unknown, t: (key: string, values?: Record<string, string>) => string): string`：有 `code` 且 `errors.<code>` 存在時回傳翻譯，否則回傳原本的訊息。
 - Produces（`app/shell.tsx`）：`<Shell title: string, search?: ReactNode>{children}</Shell>`，所有已登入頁面用它包住內容。側欄項目：題目 `/`、新增題目 `/new`、Git 同步 `/sync`、發佈前清理 `/cleanup`、底部帳號與登出。寬度小於 900px 時側欄預設收合，頂列的按鈕可展開。
-- `layout.tsx`：server component，讀 cookie `theme` 與 `NEXT_LOCALE`（經 `pickTheme`／`pickLocale`），輸出 `<html lang={locale} data-theme={theme}>`，用 `NextIntlClientProvider` 包住 children，匯入四套 `@fontsource` 字體 CSS（只匯入用到的字重：400、500、600、700）。
+- `layout.tsx`：server component，讀 cookie `theme` 與 `NEXT_LOCALE`（經 `pickTheme`／`pickLocale`），輸出 `<html lang={locale} data-theme={theme}>`，用 `NextIntlClientProvider` 包住 children，匯入 `@fontsource` 字體 CSS（只匯入用到的字重：400、500、600、700）。
 - `i18n/request.ts`：`getRequestConfig` 讀 cookie 決定語言並載入 `messages/<locale>.json`。
 - 切換：`switchers.tsx` 寫 cookie（`path=/; max-age=31536000; samesite=lax`）後 `router.refresh()`。
 - `themes.css`：每個主題一段 `[data-theme="..."] { --... }`，變數至少包含 spec 5.1 列出的項目，數值取自 mockup。`globals.css` 只用變數，不寫死顏色。
 - 翻譯檔：依頁面分區（`common`、`nav`、`login`、`list`、`new`、`editor`、`publish`、`sync`、`cleanup`、`errors`、`themes`）。這個 task 寫好 `common`、`nav`、`login`、`themes` 與 Task 1 的全部 `errors.<code>`；其他分區由後續 task 補上。
 
 - [ ] **Step 1: 寫失敗的測試**：
-  - `lib/prefs.test.ts`：`pickTheme(undefined) === "signal"`、`pickTheme("zinc") === "zinc"`、`pickTheme("purple") === "signal"`；`pickLocale("en") === "en"`、`pickLocale("fr") === "zh-TW"`、`pickLocale(undefined) === "zh-TW"`。
+  - `lib/prefs.test.ts`：`pickTheme(undefined) === "signal"`、`pickTheme("zinc") === "zinc"`、`pickTheme("frost") === "frost"`、`pickTheme("purple") === "signal"`；`pickLocale("en") === "en"`、`pickLocale("fr") === "zh-TW"`、`pickLocale(undefined) === "zh-TW"`。
   - `lib/messages.test.ts`：遞迴取出兩個 JSON 檔的所有 key 路徑，兩者集合相等；任何值都不是空字串。
 - [ ] **Step 2: 在 VM 跑 `docker build frontend`，確認測試失敗。**
 - [ ] **Step 3: 安裝套件（確切版本）、實作上述檔案，登入頁改用新版面（無側欄、置中、有切換按鈕）。其他頁面暫時把 `<Nav />` 換成 `<Shell>`，字串維持現狀，後續 task 再翻譯。**
@@ -199,5 +199,5 @@
 - [ ] **Step 1: 寫端對端測試** `test_reorder_syncs_to_ctfd`：建立並發佈兩題（同分類），`PUT /api/challenges/order` 交換兩題順序後：CTFd `GET /api/v1/challenges?view=admin` 中兩題的 `position` 與 web app 一致；CTFd 前台清單 `GET /api/v1/challenges`（一般使用者）中兩題的先後也交換了。再建立一題不同分類的題目並發佈，把該分類拖到最前面，確認 CTFd 前台清單中該分類的題目最先出現。結束時刪除測試題目。
 - [ ] **Step 2: 在 VM `sudo ./install.sh` 後跑端對端測試，全部通過（現有的 9 + 1 加上新測試）。**
 - [ ] **Step 3: README（兩種語言）更新 web app 段落：主題切換、語言切換、列表與卡片、拖拉排序會同步到 CTFd 的 `position`、`order` 不能當 slug；中文跑 `check_zh.py`。**
-- [ ] **Step 4: 手動驗證並截圖**（Playwright 或瀏覽器皆可，截圖放 scratchpad，不 commit）：四種主題 × 兩種語言的題目頁（列表與卡片）、編輯器、清理頁；滑鼠與鍵盤各拖拉一次；製造 `order_mismatch`（開兩個分頁，一邊新增題目，另一邊拖拉）確認有提示並重新載入；長名稱不撐破版面；切換語言與主題時沒有閃爍。
+- [ ] **Step 4: 手動驗證並截圖**（Playwright 或瀏覽器皆可，截圖放 scratchpad，不 commit）：五種主題 × 兩種語言的題目頁（列表與卡片）、編輯器、清理頁；滑鼠與鍵盤各拖拉一次；製造 `order_mismatch`（開兩個分頁，一邊新增題目，另一邊拖拉）確認有提示並重新載入；長名稱不撐破版面；切換語言與主題時沒有閃爍。
 - [ ] **Step 5: Commit** `test(e2e): drag order syncs to CTFd; docs: web app redesign`
