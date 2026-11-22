@@ -13,8 +13,21 @@ build hello-multi-app hello-multi/app
 
 CTFD_ADMIN_NAME=$(sed -n 's/^CTFD_ADMIN_NAME=//p' "$envfile")
 CTFD_ADMIN_PASSWORD=$(sed -n 's/^CTFD_ADMIN_PASSWORD=//p' "$envfile")
-export CTFD_ADMIN_NAME CTFD_ADMIN_PASSWORD
+WEB_ADMIN_USER=$(sed -n 's/^WEB_ADMIN_USER=//p' "$envfile")
+WEB_ADMIN_PASSWORD=$(sed -n 's/^WEB_ADMIN_PASSWORD=//p' "$envfile")
+export CTFD_ADMIN_NAME CTFD_ADMIN_PASSWORD WEB_ADMIN_USER WEB_ADMIN_PASSWORD
 
-docker run --rm --network host -e CTFD_ADMIN_NAME -e CTFD_ADMIN_PASSWORD -e PIP_DISABLE_PIP_VERSION_CHECK=1 \
-  -v "$repo/tests/e2e:/t" -w /t python:3.15-alpine \
-  sh -c "pip install -q --root-user-action=ignore -r requirements.txt && pytest -v -p no:cacheprovider $*"
+pytests() {
+  docker run --rm --network host -e CTFD_ADMIN_NAME -e CTFD_ADMIN_PASSWORD -e WEB_ADMIN_USER -e WEB_ADMIN_PASSWORD \
+    -e PIP_DISABLE_PIP_VERSION_CHECK=1 -v "$repo/tests/e2e:/t" -w /t python:3.15-alpine \
+    sh -c "pip install -q --root-user-action=ignore -r requirements.txt && pytest -v -p no:cacheprovider $*"
+}
+# The cleanup test deletes every non-admin user and all web sessions, so it runs last, in its own pytest.
+pytests --ignore=test_cleanup.py "$@"
+pytests test_cleanup.py
+if [ -n "$(docker ps -a --filter name='^challenge-' -q)" ]; then
+  echo "challenge-* containers left after cleanup:" >&2
+  docker ps -a --filter name='^challenge-' >&2
+  exit 1
+fi
+echo "no challenge-* containers left"

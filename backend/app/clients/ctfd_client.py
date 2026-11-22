@@ -72,5 +72,8 @@ class CtfdClient:
             page = body["meta"]["pagination"]["next"]
         return users
 
+    def get_user(self, uid: int) -> dict:  # the list view has no "type"
+        return self._api("GET", f"/users/{uid}")["data"]
+
     def delete_user(self, uid: int) -> None:
         self._api("DELETE", f"/users/{uid}")

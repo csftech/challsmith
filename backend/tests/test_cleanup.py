@@ -27,7 +27,10 @@ class FakeCtfd:
         self.deleted, self.fail = [], fail
 
     def list_users(self):
-        return [{"id": 1, "type": "admin"}, {"id": 2, "type": "user"}, {"id": 3, "type": "user"}]
+        return [{"id": 1}, {"id": 2}, {"id": 3}]  # the real list view has no "type"
+
+    def get_user(self, uid):
+        return {"id": uid, "type": "admin" if uid == 1 else "user"}
 
     def delete_user(self, uid):
         if self.fail:

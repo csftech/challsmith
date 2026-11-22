@@ -16,7 +16,7 @@ def run_cleanup(db: Session, cm, ctfd, docker, log) -> dict:
         containers = docker.remove_containers("challenge-", log)
         networks = docker.remove_networks("challenge-", log)
         log(f"removed {containers} containers, {networks} networks")
-        trainees = [u["id"] for u in ctfd.list_users() if u["type"] != "admin"]
+        trainees = [u["id"] for u in ctfd.list_users() if ctfd.get_user(u["id"])["type"] != "admin"]
         for uid in trainees:
             ctfd.delete_user(uid)
         log(f"deleted {len(trainees)} CTFd users")
