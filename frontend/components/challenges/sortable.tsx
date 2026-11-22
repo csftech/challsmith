@@ -13,7 +13,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useTranslations } from "next-intl";
 import type { CSSProperties, ReactNode } from "react";
 
-import { Icon } from "@/app/shell";
+import { Icon } from "@/components/shell";
 import type { Group } from "@/lib/order";
 
 type Data = { type: "group" } | { type: "item"; category: string };

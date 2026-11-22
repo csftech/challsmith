@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
-import { Switchers } from "@/app/switchers";
+import { Switchers } from "@/components/switchers";
 import { ApiError } from "@/lib/api";
 import { useErrorText } from "@/lib/errors";
 

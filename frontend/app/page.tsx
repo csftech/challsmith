@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 
-import { ChallengeCards } from "@/app/challenge-cards";
-import { ChallengeList } from "@/app/challenge-list";
-import { Icon, Shell } from "@/app/shell";
-import { SortableTree } from "@/app/sortable";
+import { ChallengeCards } from "@/components/challenges/challenge-cards";
+import { ChallengeList } from "@/components/challenges/challenge-list";
+import { Icon, Shell } from "@/components/shell";
+import { SortableTree } from "@/components/challenges/sortable";
 import { api, apiRaw, jsonInit, type ListResponse, type Summary } from "@/lib/api";
 import { useErrorText } from "@/lib/errors";
 import { flatten, groupByCategory, matches, moveGroup, moveItem, type Group } from "@/lib/order";

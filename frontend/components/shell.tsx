@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useState, type ReactNode } from "react";
 
-import { Switchers } from "@/app/switchers";
+import { Switchers } from "@/components/switchers";
 import { api, logout } from "@/lib/api";
 
 // stroke icons from the mockups

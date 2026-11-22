@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
-import { Actions, CategoryName, ctfdId, Status, Updated, type ViewProps } from "@/app/challenge-list";
-import { ItemContext, useGroupHandle, useItemHandle } from "@/app/sortable";
+import { Actions, CategoryName, ctfdId, Status, Updated, type ViewProps } from "@/components/challenges/challenge-list";
+import { ItemContext, useGroupHandle, useItemHandle } from "@/components/challenges/sortable";
 import type { Summary } from "@/lib/api";
 import type { Group } from "@/lib/order";
 

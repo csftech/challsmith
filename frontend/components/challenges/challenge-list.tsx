@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
 import { useState } from "react";
 
-import { Icon } from "@/app/shell";
-import { ItemContext, useGroupHandle, useItemHandle } from "@/app/sortable";
+import { Icon } from "@/components/shell";
+import { ItemContext, useGroupHandle, useItemHandle } from "@/components/challenges/sortable";
 import type { Summary } from "@/lib/api";
 import type { Group } from "@/lib/order";
 

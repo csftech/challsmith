@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
-import { Shell } from "@/app/shell";
+import { Shell } from "@/components/shell";
 import { api, jsonInit } from "@/lib/api";
 import { useErrorText } from "@/lib/errors";
 

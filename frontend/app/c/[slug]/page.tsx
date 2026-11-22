@@ -24,7 +24,7 @@ import {
   type Detail,
   type Meta,
 } from "@/lib/api";
-import { Shell } from "@/app/shell";
+import { Shell } from "@/components/shell";
 import { useErrorText } from "@/lib/errors";
 import { decode, encode, type Enc } from "@/lib/text";
 

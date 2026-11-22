@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 
-import { Shell } from "@/app/shell";
+import { Shell } from "@/components/shell";
 import { api, ApiError } from "@/lib/api";
 import { useErrorText } from "@/lib/errors";
 

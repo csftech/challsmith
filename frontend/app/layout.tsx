@@ -21,7 +21,7 @@ import "@fontsource/noto-sans-tc/600.css";
 import "@fontsource/noto-sans-tc/700.css";
 import "./themes.css";
 import "./globals.css";
-import { ThemeProvider } from "@/app/switchers";
+import { ThemeProvider } from "@/components/switchers";
 import { pickTheme } from "@/lib/prefs";
 
 export const metadata: Metadata = { title: "challsmith" };
