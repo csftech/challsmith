@@ -52,6 +52,13 @@ class CtfdClient:
     def update_challenge(self, cid: int, payload: dict) -> None:
         self._api("PATCH", f"/challenges/{cid}", 300, json=payload)
 
+    def list_positions(self) -> dict[int, tuple[int, int]]:
+        """id -> (position, value) of every CTFd challenge, hidden ones included."""
+        return {c["id"]: (c["position"], c["value"]) for c in self._api("GET", "/challenges", params={"view": "admin"})["data"]}
+
+    def set_position(self, cid: int, position: int) -> None:
+        self._api("PATCH", f"/challenges/{cid}", json={"position": position})
+
     def delete_challenge(self, cid: int) -> None:
         self._api("DELETE", f"/challenges/{cid}", 300)
 

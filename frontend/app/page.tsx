@@ -14,7 +14,7 @@ export default function Home() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    api<Summary[]>("/challenges").then(setRows, (e) => setError(e.message));
+    api<{ items: Summary[] }>("/challenges").then((r) => setRows(r.items), (e) => setError(e.message));
   }, []);
 
   return (

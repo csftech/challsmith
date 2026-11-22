@@ -1,4 +1,5 @@
 import json
+import logging
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
@@ -13,6 +14,8 @@ from app.schemas import challenge_schema
 from app.repositories import challenge_repository, publish_run_repository
 from app.services import challenge_service, cleanup_service
 from app.services.errors import BadRequest, Conflict, NotFound
+
+logger = logging.getLogger(__name__)
 
 
 def mirror_ref(image: str, prefix: str) -> str:
@@ -51,12 +54,12 @@ def build_additional(meta: challenge_schema.ChallengeMeta, images: dict[str, str
     return s.scenario_multi, {"services": json.dumps(services), **common}
 
 
-def ctfd_payload(meta: challenge_schema.ChallengeMeta, scenario_ref: str, additional: dict[str, str]) -> dict:
+def ctfd_payload(meta: challenge_schema.ChallengeMeta, scenario_ref: str, additional: dict[str, str], position: int) -> dict:
     return {
         "name": meta.name, "category": meta.category, "description": meta.description,
         "type": "dynamic_iac", "function": "linear", "initial": meta.value, "minimum": meta.value, "decay": 0,
         "state": "visible" if meta.visible else "hidden", "scenario": scenario_ref, "additional": additional,
-        "mana_cost": meta.instance.mana, "timeout": meta.instance.timeout,
+        "mana_cost": meta.instance.mana, "timeout": meta.instance.timeout, "position": position,
     }
 
 
@@ -145,7 +148,9 @@ def run_publish(
             docker.push(tag, log)
             images[svc.name] = tag
         scenario_ref, additional = build_additional(meta, images)
-        payload = ctfd_payload(meta, scenario_ref, additional)
+        with db_factory() as s:  # re-read: the author may have reordered during the build
+            position = challenge_repository.get_by_slug(s, slug).position
+        payload = ctfd_payload(meta, scenario_ref, additional, position)
         if ctfd_id is not None:
             log(f"updating CTFd challenge {ctfd_id}")
             try:
@@ -160,6 +165,10 @@ def run_publish(
         ctfd.set_tags(ctfd_id, meta.tags)
         log(f"published as CTFd challenge {ctfd_id}")
         finish("succeeded", {"ctfd_id": ctfd_id, "published_hash": snapshot_hash})
+        with db_factory() as s:
+            failed = challenge_service.push_positions(s, ctfd)
+        if failed:
+            logger.warning("could not push CTFd positions of: %s", ", ".join(failed))
     except Exception as e:
         log(f"FAILED: {getattr(e, 'detail', None) or e}")
         finish("failed")

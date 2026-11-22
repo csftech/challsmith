@@ -2,6 +2,7 @@ import logging
 from posixpath import basename
 from typing import BinaryIO
 
+import httpx2 as httpx
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -12,7 +13,7 @@ from app.utils import archive_util, hash_util
 from app.schemas import challenge_schema
 from app.models import Challenge
 from app.repositories import challenge_repository, publish_run_repository
-from app.services import image_cleanup_service, template_service
+from app.services import image_cleanup_service, order_service, template_service
 from app.services.errors import BadGateway, BadRequest, Conflict, NotFound, TooLarge, Unprocessable
 
 MAX_FILE = 20 * 1024 * 1024
@@ -112,12 +113,30 @@ def bounded(data: bytes, limit: int) -> bytes:
     return data
 
 
-def list_summaries(db: Session) -> list[dict]:
+def _rows(chs: list[Challenge]) -> list[order_service.Row]:
+    return [order_service.Row(c.slug, meta_of(c).category, c.ctfd_id) for c in chs]
+
+
+def list_summaries(db: Session, ctfd: ctfd_client.CtfdClient) -> dict:
+    chs = challenge_repository.list_all(db)
+    ctfd_ok, pos = True, {}
+    if any(c.ctfd_id is not None for c in chs):
+        try:
+            pos = {i: order_service.CtfdPos(*v) for i, v in ctfd.list_positions().items()}
+        except (CtfdError, httpx.HTTPError):
+            ctfd_ok = False
+    if ctfd_ok:
+        order = order_service.reconcile(_rows(chs), pos)
+        if order != [c.slug for c in chs]:
+            challenge_repository.set_positions(db, order)
+            db.commit()
+            by = {c.slug: c for c in chs}
+            chs = [by[s] for s in order]
     # shortcut: hashes every challenge's files per call, cache if the list gets big
-    out = []
-    for ch in challenge_repository.list_all(db):
+    items = []
+    for ch in chs:
         meta = meta_of(ch)
-        out.append(
+        items.append(
             {
                 "slug": ch.slug,
                 "name": meta.name,
@@ -125,9 +144,48 @@ def list_summaries(db: Session) -> list[dict]:
                 "scenario": meta.scenario,
                 **status_of(ch, current_hash(db, ch)),
                 "updated_at": ch.updated_at,
+                "position": ch.position,
+                "ctfd_id": ch.ctfd_id,
+                "ctfd_missing": ctfd_ok and ch.ctfd_id is not None and ch.ctfd_id not in pos,
+                "template": meta.template,
+                "services": len(meta.services),
+                "value": meta.value,
             }
         )
-    return out
+    return {"items": items, "ctfd_ok": ctfd_ok}
+
+
+def _push(ctfd: ctfd_client.CtfdClient, targets: list[tuple[str, int, int]]) -> list[str]:
+    failed = []
+    for slug, cid, position in targets:
+        try:
+            ctfd.set_position(cid, position)
+        except (CtfdError, httpx.HTTPError):
+            failed.append(slug)
+    return failed
+
+
+def push_positions(db: Session, ctfd: ctfd_client.CtfdClient) -> list[str]:
+    """Send every published challenge's position to CTFd; returns the slugs that failed."""
+    return _push(ctfd, [(c.slug, c.ctfd_id, c.position) for c in challenge_repository.list_all(db) if c.ctfd_id is not None])
+
+
+def save_order(db: Session, ctfd: ctfd_client.CtfdClient, order: list[str]) -> None:
+    chs = challenge_repository.list_all(db)
+    order_service.validate_order(order, _rows(chs))
+    by = {c.slug: c for c in chs}
+    pub = [(s, by[s].ctfd_id, i) for i, s in enumerate(order, 1) if by[s].ctfd_id is not None]
+    if pub:
+        try:
+            known = ctfd.list_positions()
+        except (CtfdError, httpx.HTTPError) as e:
+            raise BadGateway(f"could not read CTFd: {e}", code="ctfd_unreachable")
+        failed = _push(ctfd, [t for t in pub if t[1] in known])  # a challenge missing on CTFd keeps only its DB position
+        if failed:
+            db.rollback()
+            raise BadGateway(f"could not set the CTFd position of: {', '.join(failed)}", code="ctfd_order_failed")
+    challenge_repository.set_positions(db, order)
+    db.commit()
 
 
 def create_challenge(db: Session, slug: str, template: str, name: str) -> None:
@@ -165,6 +223,9 @@ def update_meta(db: Session, slug: str, meta: challenge_schema.ChallengeMeta, pr
     orphans = sorted(p for p in files if p.startswith("services/") and p.split("/")[1] not in folders)
     if orphans and not prune:
         raise Conflict({"orphans": orphans}, code="orphan_files")
+    if meta.category != meta_of(ch).category:
+        rows = [r._replace(category=meta.category) if r.slug == slug else r for r in _rows(challenge_repository.list_all(db))]
+        challenge_repository.set_positions(db, order_service.move_to_category_end(rows, slug, meta.category))
     ch.meta = meta.model_dump(mode="json")
     put_files(db, ch, remove=orphans)
 
