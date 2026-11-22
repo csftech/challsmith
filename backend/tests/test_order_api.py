@@ -52,11 +52,18 @@ def positions(db):
     return {c.slug: c.position for c in challenge_repository.list_all(db)}
 
 
+def stamps(db):
+    db.expire_all()
+    return {c.slug: c.updated_at for c in challenge_repository.list_all(db)}
+
+
 def test_list_reorders_by_ctfd(api, db):
     seed(api, db, "a", "b")
+    before = stamps(db)
     use(FakeCtfd({10: (2, 100), 20: (1, 100)}))
     assert slugs(api) == ["b", "a"]
     assert positions(db) == {"b": 1, "a": 2}
+    assert stamps(db) == before  # a reorder is not an edit
 
 
 def test_list_ignores_foreign_ctfd_challenges(api, db):
@@ -71,6 +78,7 @@ def test_list_ctfd_down(api, db):
     use(FakeCtfd({10: (2, 100), 20: (1, 100)}, down=True))
     r = api.get("/challenges").json()
     assert r["ctfd_ok"] is False and [i["slug"] for i in r["items"]] == ["a", "b"]
+    assert positions(db) == {"a": 1, "b": 2}
 
 
 def test_list_marks_missing(api, db):
@@ -82,11 +90,21 @@ def test_list_marks_missing(api, db):
 
 def test_save_order_updates_db_and_ctfd(api, db):
     seed(api, db, "a", "b")
+    before = stamps(db)
     f = FakeCtfd({10: (1, 1), 20: (2, 1)})
     use(f)
     assert api.put("/challenges/order", json={"order": ["b", "a"]}).status_code == 200
     assert positions(db) == {"b": 1, "a": 2}
     assert sorted(f.set) == [(10, 2), (20, 1)]
+    assert stamps(db) == before
+
+
+def test_save_order_ctfd_down(api, db):
+    seed(api, db, "a", "b")
+    use(FakeCtfd(down=True))
+    r = api.put("/challenges/order", json={"order": ["b", "a"]})
+    assert r.status_code == 502 and r.json()["code"] == "ctfd_unreachable"
+    assert positions(db) == {"a": 1, "b": 2}
 
 
 def test_save_order_skips_missing(api, db):
@@ -118,13 +136,22 @@ def test_save_order_validation(api, db):
     assert r.status_code == 400 and r.json()["code"] == "order_category_split"
 
 
+def order(db):
+    db.expire_all()
+    return [c.slug for c in challenge_repository.list_all(db)]
+
+
+def recategorise(api, slug, category):
+    meta = api.get(f"/challenges/{slug}").json()["meta"]
+    meta["category"] = category
+    assert api.put(f"/challenges/{slug}", json=meta).status_code == 200
+
+
 def test_category_change_moves_to_end(api, db):
-    seed(api, db, "a", "b", "c", published=False)
-    meta = api.get("/challenges/a").json()["meta"]
+    seed(api, db, "a", "b", "c", "d", published=False)
     cat_b = api.get("/challenges/b").json()["meta"]["category"]
-    meta["category"] = "other"
-    assert api.put("/challenges/a", json=meta).status_code == 200
-    assert [c.slug for c in challenge_repository.list_all(db)] == ["b", "c", "a"]
-    meta["category"] = cat_b
-    api.put("/challenges/a", json=meta)
-    assert [c.slug for c in challenge_repository.list_all(db)] == ["b", "c", "a"]
+    recategorise(api, "d", "other")
+    recategorise(api, "a", "other")
+    assert order(db) == ["b", "c", "d", "a"]
+    recategorise(api, "a", cat_b)  # lands after c, the last of its new category, not at the very end
+    assert order(db) == ["b", "c", "a", "d"]

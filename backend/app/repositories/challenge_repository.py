@@ -26,9 +26,11 @@ def next_position(db: Session) -> int:
 
 
 def set_positions(db: Session, order: list[str]) -> None:
-    """Number the given slugs 1..N in order."""
+    """Number the given slugs 1..N in order. A reorder is not an edit: only moved rows are written, updated_at kept."""
+    have = dict(db.execute(select(Challenge.slug, Challenge.position)).all())
     for pos, slug in enumerate(order, 1):
-        update_by_slug(db, slug, {"position": pos})
+        if have.get(slug) != pos:
+            update_by_slug(db, slug, {"position": pos, "updated_at": Challenge.updated_at})
 
 
 def add(db: Session, slug: str, meta: dict, files: dict[str, bytes]) -> Challenge:
