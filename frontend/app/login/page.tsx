@@ -1,8 +1,13 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
+import { Switchers } from "@/app/switchers";
+import { ApiError, errorText } from "@/lib/api";
+
 export default function Login() {
+  const t = useTranslations();
   const [error, setError] = useState("");
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
@@ -13,22 +18,31 @@ export default function Login() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username: f.get("username"), password: f.get("password") }),
     });
-    if (res.ok) window.location.href = "/";
-    else setError(res.status === 401 ? "帳號或密碼錯誤" : `登入失敗（HTTP ${res.status}）`);
+    if (res.ok) {
+      window.location.href = "/";
+      return;
+    }
+    if (res.status === 401) {
+      setError(t("login.invalid"));
+      return;
+    }
+    const body = await res.json().catch(() => ({}));
+    const fallback = typeof body.detail === "string" ? body.detail : `HTTP ${res.status}`;
+    // the error key is only known at run time, outside the typed message keys
+    setError(errorText(new ApiError(res.status, fallback, body.detail, body.code), (k) => t(k as never)));
   }
 
   return (
-    <main>
-      <form className="card" onSubmit={submit} style={{ margin: "10vh auto", maxWidth: 360 }}>
-        <h1 style={{ fontSize: 20 }}>challsmith 登入</h1>
-        <label htmlFor="u">帳號</label>
+    <main className="login">
+      <Switchers />
+      <form className="card" onSubmit={submit}>
+        <h1><span className="logo">cs</span>{t("login.title")}</h1>
+        <label htmlFor="u">{t("login.username")}</label>
         <input id="u" name="username" autoComplete="username" required />
-        <label htmlFor="p">密碼</label>
+        <label htmlFor="p">{t("login.password")}</label>
         <input id="p" name="password" type="password" autoComplete="current-password" required />
         {error && <div className="error">{error}</div>}
-        <p>
-          <button className="primary">登入</button>
-        </p>
+        <button className="primary">{t("login.submit")}</button>
       </form>
     </main>
   );

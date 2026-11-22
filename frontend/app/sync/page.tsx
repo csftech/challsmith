@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { Nav } from "@/app/nav";
+import { Shell } from "@/app/shell";
 import { api, ApiError, jsonInit } from "@/lib/api";
 
 type Git = {
@@ -123,12 +123,8 @@ export default function Sync() {
   const ready = conflicts.every((i) => decisions[i.slug]);
 
   return (
-    <>
-      <header className="bar">
-        <h1>同步</h1>
-        <Nav />
-      </header>
-      <main className="stack">
+    <Shell title="同步">
+      <div className="stack">
         <section className="panel">
           <h2>git 設定</h2>
           {git && (
@@ -276,7 +272,7 @@ export default function Sync() {
             下載備份
           </a>
         </section>
-      </main>
-    </>
+      </div>
+    </Shell>
   );
 }

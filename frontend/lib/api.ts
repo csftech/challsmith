@@ -1,11 +1,23 @@
+import messages from "../messages/zh-TW.json" with { type: "json" };
+
+// plain fields, not parameter properties: node --test strips types and cannot run those
 export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-    public detail?: unknown,
-  ) {
+  status: number;
+  detail?: unknown;
+  code?: string;
+  constructor(status: number, message: string, detail?: unknown, code?: string) {
     super(message);
+    this.status = status;
+    this.detail = detail;
+    this.code = code;
   }
+}
+
+// Translated text for a backend error code, else the raw message (backend detail stays English).
+export function errorText(e: unknown, t: (key: string, values?: Record<string, string>) => string): string {
+  const code = e instanceof ApiError ? e.code : undefined;
+  if (code && Object.hasOwn(messages.errors, code)) return t(`errors.${code}`);
+  return e instanceof Error ? e.message : String(e);
 }
 
 function message(detail: unknown, fallback: string): string {
@@ -22,11 +34,11 @@ export async function apiRaw(path: string, init?: RequestInit): Promise<Response
   const res = await fetch(`/api${path}`, init);
   if (res.status === 401) {
     window.location.href = "/login";
-    throw new ApiError(401, "登入已失效");
+    throw new ApiError(401, "unauthorized", undefined, "unauthorized");
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new ApiError(res.status, message(body.detail, `HTTP ${res.status}`), body.detail);
+    throw new ApiError(res.status, message(body.detail, `HTTP ${res.status}`), body.detail, body.code);
   }
   return res;
 }

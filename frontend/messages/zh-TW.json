@@ -1,0 +1,77 @@
+{
+  "common": {
+    "language": "語言",
+    "theme": "主題",
+    "loading": "載入中…",
+    "localeNames": {
+      "zh-TW": "繁體中文",
+      "en": "English"
+    }
+  },
+  "nav": {
+    "groupAuthor": "出題",
+    "groupSystem": "系統",
+    "challenges": "題目",
+    "new": "新增題目",
+    "sync": "Git 同步",
+    "cleanup": "發佈前清理",
+    "logout": "登出",
+    "toggleSidebar": "展開或收合側欄"
+  },
+  "login": {
+    "title": "登入 challsmith",
+    "username": "帳號",
+    "password": "密碼",
+    "submit": "登入",
+    "invalid": "帳號或密碼錯誤"
+  },
+  "themes": {
+    "signal": "工程",
+    "zinc": "灰階",
+    "midnight": "深色",
+    "canvas": "浮動",
+    "frost": "霧藍"
+  },
+  "errors": {
+    "bad_request": "請求的內容有誤。",
+    "unauthorized": "登入已失效，請重新登入。",
+    "not_found": "找不到這筆資料。",
+    "conflict": "資料已經有變動，請重新整理後再試一次。",
+    "too_large": "檔案太大。",
+    "unprocessable": "有欄位的內容不正確。",
+    "bad_gateway": "無法連線到後端服務，請稍後再試。",
+    "slug_exists": "已經有題目使用這個 slug。",
+    "slug_reserved": "這個 slug 是保留字，請換一個。",
+    "slug_immutable": "題目建立後就不能修改 slug。",
+    "unknown_template": "找不到這個範本。",
+    "invalid_challenge": "題目設定有誤，請檢查各欄位。",
+    "invalid_path": "檔案路徑不正確。",
+    "file_too_large": "檔案超過大小上限。",
+    "archive_too_large": "壓縮檔超過大小上限。",
+    "missing_file_name": "缺少檔案名稱。",
+    "invalid_archive": "無法讀取這個壓縮檔。",
+    "orphan_files": "有些檔案不屬於任何服務，確認後才能刪除。",
+    "file_not_found": "找不到這個檔案。",
+    "publish_running": "已經有發佈正在進行，請等它結束。",
+    "cleanup_running": "發佈前清理正在進行，請等它結束。",
+    "digest_reference": "不支援以 digest 指定的 image，請改用 tag。",
+    "publish_run_not_found": "找不到這筆發佈記錄。",
+    "order_mismatch": "排序清單和目前的題目不一致，請重新整理後再試一次。",
+    "order_category_split": "同一個分類的題目必須排在一起。",
+    "ctfd_order_failed": "無法更新 CTFd 上的題目順序。",
+    "ctfd_unreachable": "無法連線到 CTFd。",
+    "confirm_mismatch": "確認文字不正確。",
+    "cleanup_plan_failed": "無法列出要清理的 image。",
+    "cleanup_failed": "清理失敗。",
+    "invalid_remote_url": "遠端網址必須以 https://、http:// 或 file:// 開頭，或是絕對路徑。",
+    "invalid_field": "分支或目錄名稱不正確。",
+    "remote_credentials": "遠端網址不能包含帳號密碼，請填在帳號與 token 欄位。",
+    "remote_not_configured": "還沒有設定 Git 遠端。",
+    "invalid_sync_request": "同步請求的內容有誤。",
+    "unexpected_archive_path": "壓縮檔裡只能有 challenges/ 目錄下各題目資料夾的檔案。",
+    "preview_not_found": "找不到這次的預覽，請重新預覽。",
+    "decision_required": "有衝突的題目還沒選擇要保留哪一邊。",
+    "changed_since_preview": "預覽之後題目又有變動，請重新預覽。",
+    "sync_failed": "同步失敗。"
+  }
+}

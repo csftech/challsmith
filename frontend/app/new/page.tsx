@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { Nav } from "@/app/nav";
+import { Shell } from "@/app/shell";
 import { api, jsonInit, type Template } from "@/lib/api";
 
 export default function New() {
@@ -35,28 +35,22 @@ export default function New() {
 
   const current = templates.find((t) => t.name === template);
   return (
-    <>
-      <header className="bar">
-        <h1>新增題目</h1>
-        <Nav />
-      </header>
-      <main>
-        <form className="card" onSubmit={create}>
-          <label htmlFor="t">範本</label>
-          <select id="t" value={template} onChange={(e) => setTemplate(e.target.value)}>
-            {templates.map((t) => (
-              <option key={t.name} value={t.name}>{t.name}（{t.scenario}）</option>
-            ))}
-          </select>
-          {current && <p>{current.description}</p>}
-          <label htmlFor="s">slug（小寫英數與連字號，最長 48 字）</label>
-          <input id="s" value={slug} onChange={(e) => setSlug(e.target.value)} pattern="[a-z0-9][a-z0-9\-]{0,47}" required />
-          <label htmlFor="n">標題</label>
-          <input id="n" value={name} onChange={(e) => setName(e.target.value)} required />
-          {error && <div className="error">{error}</div>}
-          <p><button className="primary" disabled={!template}>建立</button></p>
-        </form>
-      </main>
-    </>
+    <Shell title="新增題目">
+      <form className="card" onSubmit={create}>
+        <label htmlFor="t">範本</label>
+        <select id="t" value={template} onChange={(e) => setTemplate(e.target.value)}>
+          {templates.map((t) => (
+            <option key={t.name} value={t.name}>{t.name}（{t.scenario}）</option>
+          ))}
+        </select>
+        {current && <p>{current.description}</p>}
+        <label htmlFor="s">slug（小寫英數與連字號，最長 48 字）</label>
+        <input id="s" value={slug} onChange={(e) => setSlug(e.target.value)} pattern="[a-z0-9][a-z0-9\-]{0,47}" required />
+        <label htmlFor="n">標題</label>
+        <input id="n" value={name} onChange={(e) => setName(e.target.value)} required />
+        {error && <div className="error">{error}</div>}
+        <p><button className="primary" disabled={!template}>建立</button></p>
+      </form>
+    </Shell>
   );
 }

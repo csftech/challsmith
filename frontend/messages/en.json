@@ -1,0 +1,77 @@
+{
+  "common": {
+    "language": "Language",
+    "theme": "Theme",
+    "loading": "Loading…",
+    "localeNames": {
+      "zh-TW": "繁體中文",
+      "en": "English"
+    }
+  },
+  "nav": {
+    "groupAuthor": "Authoring",
+    "groupSystem": "System",
+    "challenges": "Challenges",
+    "new": "New challenge",
+    "sync": "Git sync",
+    "cleanup": "Pre-release cleanup",
+    "logout": "Sign out",
+    "toggleSidebar": "Toggle sidebar"
+  },
+  "login": {
+    "title": "Sign in to challsmith",
+    "username": "Username",
+    "password": "Password",
+    "submit": "Sign in",
+    "invalid": "Wrong username or password."
+  },
+  "themes": {
+    "signal": "Signal",
+    "zinc": "Zinc",
+    "midnight": "Midnight",
+    "canvas": "Canvas",
+    "frost": "Frost"
+  },
+  "errors": {
+    "bad_request": "The request is invalid.",
+    "unauthorized": "Your session has expired. Please sign in again.",
+    "not_found": "Not found.",
+    "conflict": "The data has changed. Refresh and try again.",
+    "too_large": "The file is too large.",
+    "unprocessable": "Some fields are invalid.",
+    "bad_gateway": "A backend service could not be reached. Try again later.",
+    "slug_exists": "A challenge with this slug already exists.",
+    "slug_reserved": "This slug is reserved. Choose another one.",
+    "slug_immutable": "The slug cannot be changed after the challenge is created.",
+    "unknown_template": "Unknown template.",
+    "invalid_challenge": "The challenge settings are invalid. Check the fields.",
+    "invalid_path": "Invalid file path.",
+    "file_too_large": "The file exceeds the size limit.",
+    "archive_too_large": "The archive exceeds the size limit.",
+    "missing_file_name": "The file name is missing.",
+    "invalid_archive": "The archive could not be read.",
+    "orphan_files": "Some files do not belong to any service. Confirm to delete them.",
+    "file_not_found": "File not found.",
+    "publish_running": "A publish is already running. Wait for it to finish.",
+    "cleanup_running": "The pre-release cleanup is running. Wait for it to finish.",
+    "digest_reference": "Images referenced by digest are not supported. Use a tag.",
+    "publish_run_not_found": "Publish run not found.",
+    "order_mismatch": "The order does not match the current challenges. Refresh and try again.",
+    "order_category_split": "Challenges in the same category must stay together.",
+    "ctfd_order_failed": "Could not update the challenge order on CTFd.",
+    "ctfd_unreachable": "Could not reach CTFd.",
+    "confirm_mismatch": "The confirmation text does not match.",
+    "cleanup_plan_failed": "Could not list the images to clean up.",
+    "cleanup_failed": "The cleanup failed.",
+    "invalid_remote_url": "The remote URL must start with https://, http:// or file://, or be an absolute path.",
+    "invalid_field": "Invalid branch or directory name.",
+    "remote_credentials": "The remote URL must not contain credentials. Use the username and token fields.",
+    "remote_not_configured": "No Git remote is configured.",
+    "invalid_sync_request": "The sync request is invalid.",
+    "unexpected_archive_path": "The archive may only contain challenge folders inside challenges/.",
+    "preview_not_found": "This preview no longer exists. Run the preview again.",
+    "decision_required": "Choose which side to keep for every conflicting challenge.",
+    "changed_since_preview": "Challenges changed after the preview. Run the preview again.",
+    "sync_failed": "The sync failed."
+  }
+}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { Nav } from "@/app/nav";
+import { Shell } from "@/app/shell";
 import { api, jsonInit } from "@/lib/api";
 
 type Result = {
@@ -81,62 +81,56 @@ export default function Cleanup() {
   }
 
   return (
-    <>
-      <header className="bar">
-        <h1>發佈前清理</h1>
-        <Nav />
-      </header>
-      <main>
-        <div className="card">
-          <p>這會執行下列動作，無法復原：</p>
-          <ul>
-            <li>關閉所有 instance 並移除殘留 container 與 network</li>
-            <li>刪除 CTFd 中所有非管理者使用者與其紀錄</li>
-            <li>清除 web app 登入 session</li>
-            <li>移除下列未使用的 image 與 registry tag，清掉 build cache 與匿名 volume，並整理 registry（會短暫重啟）</li>
-          </ul>
-          <h2>未使用的 image</h2>
-          {planError && <div className="error">無法取得清單：{planError}</div>}
-          {!plan && !planError && <p>載入中…</p>}
-          {plan && (
-            <>
-              <p>
-                將移除 {plan.images.length} 個 image（最多釋放 {mb(plan.reclaimable_bytes)}，這是各 image 大小相加，共用的 layer 會重複計算）與 {plan.registry.length} 個
-                registry tag。清理時會在關閉 instance 之後重新計算一次。
-              </p>
-              <ul>
-                {plan.images.map((i) => (
-                  <li key={i.id + i.ref}>
-                    <code>{i.ref || `未標記 ${i.id.slice(7, 19)}`}</code>（{mb(i.size)}）
-                  </li>
-                ))}
-                {plan.registry.map((t) => (
-                  <li key={t.repo + t.tag}>
-                    registry：<code>{`${t.repo}:${t.tag}`}</code>
-                  </li>
-                ))}
-              </ul>
-              <Kept title="保留的 image" kept={plan.kept_images} />
-              <Kept title="保留的 registry tag" kept={plan.kept_registry} />
-            </>
-          )}
-          <label htmlFor="confirm">請輸入 CLEANUP 以確認</label>
-          <div className="row">
-            <input id="confirm" value={text} autoComplete="off" onChange={(e) => setText(e.target.value)} />
-            <button className="danger" onClick={go} disabled={busy || text !== "CLEANUP"}>
-              執行清理
-            </button>
-          </div>
-          {error && <div className="error">{error}</div>}
-          {result && (
+    <Shell title="發佈前清理">
+      <div className="card">
+        <p>這會執行下列動作，無法復原：</p>
+        <ul>
+          <li>關閉所有 instance 並移除殘留 container 與 network</li>
+          <li>刪除 CTFd 中所有非管理者使用者與其紀錄</li>
+          <li>清除 web app 登入 session</li>
+          <li>移除下列未使用的 image 與 registry tag，清掉 build cache 與匿名 volume，並整理 registry（會短暫重啟）</li>
+        </ul>
+        <h2>未使用的 image</h2>
+        {planError && <div className="error">無法取得清單：{planError}</div>}
+        {!plan && !planError && <p>載入中…</p>}
+        {plan && (
+          <>
             <p>
-              已完成：關閉 {result.instances} 個 instance，移除 {result.containers} 個 container 與{" "}
-              {result.networks} 個 network，刪除 {result.users} 位使用者，清除 {result.sessions} 個 session，移除{" "}
-              {result.images} 個 image 與 {result.registry_tags} 個 registry tag（最多 {mb(result.reclaimed_bytes)}）。即將回到登入頁。
+              將移除 {plan.images.length} 個 image（最多釋放 {mb(plan.reclaimable_bytes)}，這是各 image 大小相加，共用的 layer 會重複計算）與 {plan.registry.length} 個
+              registry tag。清理時會在關閉 instance 之後重新計算一次。
             </p>
-          )}
+            <ul>
+              {plan.images.map((i) => (
+                <li key={i.id + i.ref}>
+                  <code>{i.ref || `未標記 ${i.id.slice(7, 19)}`}</code>（{mb(i.size)}）
+                </li>
+              ))}
+              {plan.registry.map((t) => (
+                <li key={t.repo + t.tag}>
+                  registry：<code>{`${t.repo}:${t.tag}`}</code>
+                </li>
+              ))}
+            </ul>
+            <Kept title="保留的 image" kept={plan.kept_images} />
+            <Kept title="保留的 registry tag" kept={plan.kept_registry} />
+          </>
+        )}
+        <label htmlFor="confirm">請輸入 CLEANUP 以確認</label>
+        <div className="row">
+          <input id="confirm" value={text} autoComplete="off" onChange={(e) => setText(e.target.value)} />
+          <button className="danger" onClick={go} disabled={busy || text !== "CLEANUP"}>
+            執行清理
+          </button>
         </div>
-      </main>
-    </>
+        {error && <div className="error">{error}</div>}
+        {result && (
+          <p>
+            已完成：關閉 {result.instances} 個 instance，移除 {result.containers} 個 container 與{" "}
+            {result.networks} 個 network，刪除 {result.users} 位使用者，清除 {result.sessions} 個 session，移除{" "}
+            {result.images} 個 image 與 {result.registry_tags} 個 registry tag（最多 {mb(result.reclaimed_bytes)}）。即將回到登入頁。
+          </p>
+        )}
+      </div>
+    </Shell>
   );
 }

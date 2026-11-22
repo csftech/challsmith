@@ -1,0 +1,119 @@
+/* Theme tokens. Values come from the mockups in docs/superpowers/specs/assets/2026-11-23-webapp-redesign/:
+   signal/zinc/midnight/canvas = visual-style-v2.html G/D/E/F, frost = theme-5.html I.
+   globals.css uses only these variables. */
+
+:root {
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  --zh: "Noto Sans TC", "Microsoft JhengHei", "PingFang TC";
+  --log-bg: #0d1117;
+  --log-fg: #e6edf3;
+}
+
+[data-theme="signal"] {
+  color-scheme: light;
+  --font: "IBM Plex Sans", var(--zh), system-ui, sans-serif;
+  /* backgrounds */
+  --bg: #f4f3ef; --side-bg: #f4f3ef; --main-bg: #fff; --top-bg: #fff; --panel-bg: #fff; --input-bg: #fff;
+  --head-bg: transparent; --cat-bg: #f4f3ef; --seg-bg: #fff; --kbd-bg: #fff;
+  /* text */
+  --fg: #111; --muted: #5c5a53; --side-fg: #111; --side-muted: #111; --brand-fg: #111; --head-fg: #111; --cat-fg: #111;
+  --link: #111; --danger: #b42318;
+  /* lines */
+  --bw: 1.5px; --line: #111; --side-line: #111; --top-line: #111; --panel-line: #111; --row-line: #d6d4cc;
+  --panel-shadow: none;
+  /* shape */
+  --radius: 2px; --radius-sm: 2px; --gap: 0px;
+  /* navigation */
+  --nav-on-bg: #111; --nav-on-fg: #f4f3ef; --nav-on-mark: transparent; --nav-on-weight: 400;
+  --logo-bg: #111; --logo-fg: #f5d90a; --av-bg: #f5d90a; --av-fg: #111; --av-line: #111;
+  /* buttons */
+  --primary-bg: #f5d90a; --primary-fg: #111; --primary-line: #111; --seg-on-bg: #111; --seg-on-fg: #fff;
+  /* status badges and chips */
+  --ok-bg: #fff; --ok-fg: #111; --ok-line: #111;
+  --warn-bg: #f5d90a; --warn-fg: #111; --warn-line: #111;
+  --chip-bg: transparent; --chip-fg: #111; --chip-line: #111; --badge-radius: 2px;
+  /* table head and category rows: monospace upper case */
+  --head-font: var(--mono); --head-size: 10.5px; --head-case: uppercase; --head-spacing: .5px; --head-weight: 600;
+  --sel-bg: #f5d90a;
+}
+
+[data-theme="zinc"] {
+  color-scheme: light;
+  --font: "Inter", var(--zh), system-ui, sans-serif;
+  --bg: #fafafa; --side-bg: #fafafa; --main-bg: #fff; --top-bg: #fff; --panel-bg: #fff; --input-bg: #fff;
+  --head-bg: transparent; --cat-bg: #fafafa; --seg-bg: #f4f4f5; --kbd-bg: #f4f4f5;
+  --fg: #18181b; --muted: #71717a; --side-fg: #52525b; --side-muted: #71717a; --brand-fg: #18181b; --head-fg: #71717a; --cat-fg: #52525b;
+  --link: #18181b; --danger: #b42318;
+  --bw: 1px; --line: #e4e4e7; --side-line: #ececee; --top-line: #ececee; --panel-line: #e4e4e7; --row-line: #f0f0f2;
+  --panel-shadow: none;
+  --radius: 10px; --radius-sm: 7px; --gap: 0px;
+  --nav-on-bg: #f0f0f2; --nav-on-fg: #18181b; --nav-on-mark: transparent; --nav-on-weight: 600;
+  --logo-bg: #18181b; --logo-fg: #fff; --av-bg: #e4e4e7; --av-fg: #18181b; --av-line: transparent;
+  --primary-bg: #18181b; --primary-fg: #fff; --primary-line: #18181b; --seg-on-bg: #fff; --seg-on-fg: #18181b;
+  --ok-bg: #ecfdf3; --ok-fg: #067647; --ok-line: #abefc6;
+  --warn-bg: #fffaeb; --warn-fg: #b54708; --warn-line: #fedf89;
+  --chip-bg: #f4f4f5; --chip-fg: #3f3f46; --chip-line: transparent; --badge-radius: 999px;
+  --head-font: var(--font); --head-size: 11.5px; --head-case: none; --head-spacing: 0; --head-weight: 600;
+  --sel-bg: #f0f0f2;
+}
+
+[data-theme="midnight"] {
+  color-scheme: dark;
+  --font: "Inter", var(--zh), system-ui, sans-serif;
+  --bg: #0e0f11; --side-bg: #0e0f11; --main-bg: #121316; --top-bg: transparent; --panel-bg: #141518; --input-bg: #17191d;
+  --head-bg: transparent; --cat-bg: #17181c; --seg-bg: #1c1e22; --kbd-bg: #23262c;
+  --fg: #e6e7ea; --muted: #8b8f98; --side-fg: #8b8f98; --side-muted: #8b8f98; --brand-fg: #e6e7ea; --head-fg: #7d818a; --cat-fg: #8b8f98;
+  --link: #7aa9ff; --danger: #ff7b72;
+  --bw: 1px; --line: #262930; --side-line: #1d1f23; --top-line: #1d1f23; --panel-line: #22252a; --row-line: #1b1d21;
+  --panel-shadow: none;
+  --radius: 10px; --radius-sm: 7px; --gap: 0px;
+  --nav-on-bg: #1a1c20; --nav-on-fg: #f2f3f5; --nav-on-mark: transparent; --nav-on-weight: 400;
+  --logo-bg: #4c8dff; --logo-fg: #fff; --av-bg: #2a2d33; --av-fg: #e6e7ea; --av-line: transparent;
+  --primary-bg: #4c8dff; --primary-fg: #fff; --primary-line: #4c8dff; --seg-on-bg: #2b2e35; --seg-on-fg: #e6e7ea;
+  --ok-bg: rgba(52, 199, 123, .12); --ok-fg: #5fd796; --ok-line: transparent;
+  --warn-bg: rgba(240, 180, 70, .12); --warn-fg: #f0b446; --warn-line: transparent;
+  --chip-bg: #1f2227; --chip-fg: #b4b8c0; --chip-line: transparent; --badge-radius: 999px;
+  --head-font: var(--font); --head-size: 11.5px; --head-case: none; --head-spacing: 0; --head-weight: 600;
+  --sel-bg: #1a1c20;
+}
+
+[data-theme="canvas"] {
+  color-scheme: light;
+  --font: "Inter", var(--zh), system-ui, sans-serif;
+  --bg: #eef1f5; --side-bg: #fff; --main-bg: transparent; --top-bg: transparent; --panel-bg: #fff; --input-bg: #fff;
+  --head-bg: #f8fafc; --cat-bg: transparent; --seg-bg: #eef1f5; --kbd-bg: #eef1f5;
+  --fg: #1c2430; --muted: #697586; --side-fg: #4b5565; --side-muted: #697586; --brand-fg: #1c2430; --head-fg: #697586; --cat-fg: #364152;
+  --link: #2f5bd3; --danger: #b42318;
+  --bw: 1px; --line: #dde2ea; --side-line: transparent; --top-line: transparent; --panel-line: transparent; --row-line: #f1f3f7;
+  --panel-shadow: 0 1px 2px rgba(16, 24, 40, .06);
+  --radius: 10px; --radius-sm: 7px; --gap: 10px;
+  --nav-on-bg: #eef3ff; --nav-on-fg: #2f5bd3; --nav-on-mark: transparent; --nav-on-weight: 600;
+  --logo-bg: #e8eefc; --logo-fg: #2f5bd3; --av-bg: #e3e8ef; --av-fg: #1c2430; --av-line: transparent;
+  --primary-bg: #2f5bd3; --primary-fg: #fff; --primary-line: #2f5bd3; --seg-on-bg: #fff; --seg-on-fg: #2f5bd3;
+  --ok-bg: #e7f6ec; --ok-fg: #18794e; --ok-line: transparent;
+  --warn-bg: #fdf1e3; --warn-fg: #b25e09; --warn-line: transparent;
+  /* per-category chip colours are set by the list page */
+  --chip-bg: #e8eefc; --chip-fg: #2f5bd3; --chip-line: transparent; --badge-radius: 999px;
+  --head-font: var(--font); --head-size: 11.5px; --head-case: none; --head-spacing: 0; --head-weight: 600;
+  --sel-bg: #eef3ff;
+}
+
+[data-theme="frost"] {
+  color-scheme: light;
+  --font: "Inter", var(--zh), system-ui, sans-serif;
+  --bg: #e9eef3; --side-bg: #2e3440; --main-bg: #f4f7fa; --top-bg: #f4f7fa; --panel-bg: #fff; --input-bg: #fff;
+  --head-bg: #f6f8fb; --cat-bg: transparent; --seg-bg: #e5e9f0; --kbd-bg: #e5e9f0;
+  --fg: #2e3440; --muted: #616e88; --side-fg: #aeb7c6; --side-muted: #d8dee9; --brand-fg: #eceff4; --head-fg: #616e88; --cat-fg: #4c566a;
+  --link: #5e81ac; --danger: #bf616a;
+  --bw: 1px; --line: #d3dbe4; --side-line: transparent; --top-line: #dbe2ea; --panel-line: #dde3ea; --row-line: #eef1f5;
+  --panel-shadow: none;
+  --radius: 10px; --radius-sm: 7px; --gap: 0px;
+  --nav-on-bg: #3b4252; --nav-on-fg: #eceff4; --nav-on-mark: #88c0d0; --nav-on-weight: 400;
+  --logo-bg: #88c0d0; --logo-fg: #2e3440; --av-bg: #4c566a; --av-fg: #eceff4; --av-line: transparent;
+  --primary-bg: #5e81ac; --primary-fg: #fff; --primary-line: #5e81ac; --seg-on-bg: #fff; --seg-on-fg: #5e81ac;
+  --ok-bg: #e3f0e6; --ok-fg: #4c7a55; --ok-line: transparent;
+  --warn-bg: #f6ecd9; --warn-fg: #946a1e; --warn-line: transparent;
+  --chip-bg: #e5e9f0; --chip-fg: #4c566a; --chip-line: transparent; --badge-radius: 999px;
+  --head-font: var(--font); --head-size: 11.5px; --head-case: none; --head-spacing: 0; --head-weight: 600;
+  --sel-bg: #e5e9f0;
+}

@@ -23,7 +23,7 @@ import {
   type Detail,
   type Meta,
 } from "@/lib/api";
-import { Nav } from "@/app/nav";
+import { Shell } from "@/app/shell";
 import { decode, encode, type Enc } from "@/lib/text";
 
 type SvcForm = { name: string; port: string; entry: boolean; useImage: boolean; image: string; env: string };
@@ -258,13 +258,11 @@ export default function Editor() {
   }
 
   return (
-    <>
-      <header className="bar">
-        <h1>{meta.name}（{slug}）</h1>
+    <Shell title={`${meta.name}（${slug}）`}>
+      <div className="row">
         <Link className="btn primary" href={`/c/${slug}/publish`}>發佈</Link>
-        <Nav />
-      </header>
-      <main className="editor">
+      </div>
+      <div className="editor">
         <section className="panel">
           <label htmlFor="name">標題</label>
           <input id="name" value={meta.name} onChange={(e) => setMeta({ name: e.target.value })} />
@@ -403,7 +401,7 @@ export default function Editor() {
             </>
           )}
         </section>
-      </main>
-    </>
+      </div>
+    </Shell>
   );
 }

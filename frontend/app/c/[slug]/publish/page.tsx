@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-import { Nav } from "@/app/nav";
+import { Shell } from "@/app/shell";
 import { api, ApiError } from "@/lib/api";
 
 type Run = { status: "running" | "succeeded" | "failed"; log: string };
@@ -60,20 +60,16 @@ export default function Publish() {
   }
 
   return (
-    <>
-      <header className="bar">
-        <h1>發佈 {slug}</h1>
+    <Shell title={`發佈 ${slug}`}>
+      <div className="row">
         <Link className="btn" href={`/c/${slug}`}>回編輯</Link>
-        <Nav />
-      </header>
-      <main>
-        <div className="row">
-          <button className="primary" onClick={start} disabled={running}>發佈</button>
-          {run && <strong>{LABEL[run.status]}</strong>}
-        </div>
-        {error && <div className="error">{error}</div>}
-        {runId !== null && <pre className="log" ref={logRef}>{run?.log ?? ""}</pre>}
-      </main>
-    </>
+      </div>
+      <div className="row">
+        <button className="primary" onClick={start} disabled={running}>發佈</button>
+        {run && <strong>{LABEL[run.status]}</strong>}
+      </div>
+      {error && <div className="error">{error}</div>}
+      {runId !== null && <pre className="log" ref={logRef}>{run?.log ?? ""}</pre>}
+    </Shell>
   );
 }
