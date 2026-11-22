@@ -38,7 +38,8 @@ class FakeDocker:
 
 
 class FakeCtfd:
-    def __init__(self, missing=False):
+    def __init__(self, missing=False, tags_fail=False):
+        self.tags_fail = tags_fail
         self.created, self.updated, self.tags, self.deleted, self.missing = [], [], [], [], missing
 
     def create_challenge(self, payload):
@@ -51,6 +52,8 @@ class FakeCtfd:
         self.updated.append((cid, payload))
 
     def set_tags(self, cid, tags):
+        if self.tags_fail:
+            raise ctfd_client.CtfdError("tags down")
         self.tags.append((cid, tags))
 
     def delete_challenge(self, cid):
@@ -133,6 +136,25 @@ def test_publish_recreates_when_ctfd_missing(db):
     publish_service.run_publish(factory, run_id, "c1", FakeDocker(), ctfd)
     db.expire_all()
     assert db.scalar(select(Challenge)).ctfd_id == 12 and ctfd.created[0]["type"] == "dynamic_iac"
+
+
+@pytest.mark.parametrize("start_id,missing", [(None, False), (7, True)])
+def test_created_id_survives_set_tags_failure(db, start_id, missing):
+    challenge_service.create_challenge(db, "c1", "php", "C")
+    ch = db.scalar(select(Challenge))
+    ch.ctfd_id = start_id
+    db.commit()
+    run1 = publish_service.start_run(db, "c1")
+    publish_service.run_publish(factory, run1, "c1", FakeDocker(), FakeCtfd(missing=missing, tags_fail=True))
+    db.expire_all()
+    assert db.get(PublishRun, run1).status == "failed"
+    assert (ch.ctfd_id, ch.published_hash) == (12, None)
+    run2 = publish_service.start_run(db, "c1")
+    ctfd = FakeCtfd()
+    publish_service.run_publish(factory, run2, "c1", FakeDocker(), ctfd)
+    db.expire_all()
+    assert db.get(PublishRun, run2).status == "succeeded"
+    assert ctfd.updated and not ctfd.created and ch.published_hash
 
 
 @pytest.fixture

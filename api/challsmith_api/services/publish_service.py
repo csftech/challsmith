@@ -108,11 +108,12 @@ def run_publish(
             s.execute(update(PublishRun).where(PublishRun.id == run_id).values(log=PublishRun.log + line + "\n"))
             s.commit()
 
-    def finish(status: str, ch_values: dict | None = None) -> None:
+    def finish(status: str | None, ch_values: dict | None = None) -> None:
         with db_factory() as s:
             if ch_values:
                 s.execute(update(Challenge).where(Challenge.slug == slug).values(**ch_values))
-            s.execute(update(PublishRun).where(PublishRun.id == run_id).values(status=status, finished_at=func.now()))
+            if status:
+                s.execute(update(PublishRun).where(PublishRun.id == run_id).values(status=status, finished_at=func.now()))
             s.commit()
 
     try:
@@ -149,6 +150,7 @@ def run_publish(
         if ctfd_id is None:
             log("creating CTFd challenge")
             ctfd_id = ctfd.create_challenge(payload)
+            finish(None, {"ctfd_id": ctfd_id})  # track it now so a later failure cannot orphan it
         ctfd.set_tags(ctfd_id, meta.tags)
         log(f"published as CTFd challenge {ctfd_id}")
         finish("succeeded", {"ctfd_id": ctfd_id, "published_hash": snapshot_hash})
