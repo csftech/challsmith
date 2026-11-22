@@ -16,8 +16,8 @@ class TemplateInfo(BaseModel):
 def _dir(name: str) -> Path:
     root = Path(get_settings().templates_dir)
     path = root / name
-    # name comes from the request: only direct children of the templates dir count
-    if path.parent != root or not (path / "template.yml").is_file():
+    # name comes from the request: only real child directories of the templates dir count
+    if name not in {p.name for p in root.iterdir()} or not (path / "template.yml").is_file():
         raise KeyError(name)
     return path
 

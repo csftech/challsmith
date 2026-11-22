@@ -36,3 +36,9 @@ def test_route(client, db):
     r = client.get("/templates", headers=bearer(token))
     assert r.status_code == 200
     assert {t["name"] for t in r.json()} == NAMES
+
+
+@pytest.mark.parametrize("name", ["..", "php/../php", ".", "", "/etc"])
+def test_instantiate_rejects_path_tricks(name):
+    with pytest.raises(KeyError):
+        templates.instantiate(name, "x", "X")
