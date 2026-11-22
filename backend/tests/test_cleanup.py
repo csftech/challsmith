@@ -64,6 +64,17 @@ def test_run_cleanup(db):
     assert db.scalar(select(func.count()).select_from(Challenge)) == 1
 
 
+def test_run_cleanup_never_deletes_when_user_lookup_fails(db):
+    class Broken(FakeCtfd):
+        def get_user(self, uid):
+            raise RuntimeError("lookup failed")
+
+    ctfd = Broken()
+    with pytest.raises(BadGateway, match="lookup failed"):
+        cleanup_service.run_cleanup(db, FakeCm(), ctfd, FakeDocker(), lambda _: None)
+    assert ctfd.deleted == []
+
+
 def test_run_cleanup_stops_on_failure(db):
     db.add(WebSession(token_hash="x", expires_at=db.scalar(select(func.now()))))
     db.commit()

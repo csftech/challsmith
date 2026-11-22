@@ -31,8 +31,11 @@ def test_single_template_publish(web, admin, new_challenge, register_user):
 
 def test_multi_template_publish(web, admin, new_challenge, register_user):
     slug = new_challenge("nginx-php-db")
-    put_file(web, slug, "services/php/index.php", "<?php echo getenv('FLAG');")
     cid = published(web, admin, slug)["id"]
+    # the template's own files must be readable by php-fpm (build-context modes), before we replace any
+    get_until(start_instance(register_user("dave"), cid) + "/", "Replace this page")
+    put_file(web, slug, "services/php/index.php", "<?php echo getenv('FLAG');")
+    assert published(web, admin, slug)["id"] == cid
     user = register_user("carol")
     assert submit(user, cid, flag_of(start_instance(user, cid))) == "correct"
     catalog = requests.get("http://127.0.0.1:5000/v2/_catalog", timeout=30).json()["repositories"]

@@ -1,4 +1,5 @@
 import json
+import os
 
 import pytest
 from sqlalchemy import select
@@ -86,6 +87,19 @@ def test_build_additional_multi(db):
     assert svcs["db"]["image"] == f"{PREFIX}/mirror/mariadb:11.8"
     assert svcs["web"]["entry"] is True and svcs["web"]["port"] == 80
     assert add["memory"] == "512m" and all(isinstance(v, str) for v in add.values())
+
+
+def test_write_context_modes(tmp_path):
+    old = os.umask(0o077)
+    try:
+        ctx = tmp_path / "ctx"
+        ctx.mkdir(mode=0o700)
+        publish_service._write_context(ctx, {"services/app/a/b.php": b"x", "services/app/Dockerfile": b"y",
+                                             "services/other/z": b"z"}, "app")
+    finally:
+        os.umask(old)
+    modes = {str(p.relative_to(ctx)): oct(p.stat().st_mode & 0o777) for p in [ctx, *ctx.rglob("*")]}
+    assert modes == {".": "0o755", "a": "0o755", "a/b.php": "0o644", "Dockerfile": "0o644"}
 
 
 def test_mirror_ref():

@@ -91,6 +91,10 @@ def _write_context(dest: Path, files: dict[str, bytes], service: str) -> None:
             target = dest / path[len(prefix):]
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(content)
+    # explicit modes: the image must not depend on the api's umask (php-fpm/nginx run as other users)
+    dest.chmod(0o755)
+    for p in dest.rglob("*"):
+        p.chmod(0o755 if p.is_dir() else 0o644)
 
 
 def run_publish(
