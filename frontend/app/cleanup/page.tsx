@@ -102,7 +102,7 @@ export default function Cleanup() {
           <li>{t("step4")}</li>
         </ul>
         <h2>{t("unused")}</h2>
-        {planError && <div className="error">{t("planFailed", { error: planError })}</div>}
+        {planError && <div className="error">{planError}</div>}
         {!plan && !planError && <p>{common("loading")}</p>}
         {plan && (
           <>

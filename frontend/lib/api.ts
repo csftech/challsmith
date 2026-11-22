@@ -13,10 +13,18 @@ export class ApiError extends Error {
   }
 }
 
+// codes whose English detail carries the cause (git or docker output, the CTFd error, the bad field)
+const WITH_CAUSE = new Set(["sync_failed", "cleanup_failed", "cleanup_plan_failed", "ctfd_unreachable",
+  "ctfd_order_failed", "slug_reserved", "bad_gateway"]);
+
 // Translated text for a backend error code, else the raw message (backend detail stays English).
 export function errorText(e: unknown, t: (key: string, values?: Record<string, string>) => string): string {
   const code = e instanceof ApiError ? e.code : undefined;
-  if (code && Object.hasOwn(messages.errors, code)) return t(`errors.${code}`);
+  if (code && Object.hasOwn(messages.errors, code)) {
+    const text = t(`errors.${code}`);
+    const cause = (e as ApiError).message;
+    return (WITH_CAUSE.has(code) || code.startsWith("invalid_")) && cause ? `${text} (${cause})` : text;
+  }
   return e instanceof Error ? e.message : String(e);
 }
 
