@@ -32,6 +32,7 @@
 - `slug` 必須符合 `^[a-z0-9][a-z0-9-]{0,47}$`，service 名稱必須符合 `^[a-z0-9-]+$`（與 `scenarios/internal/scenario/config.go` 的 `nameRe` 一致）。
 - web app 只有一個管理者帳號，帳密來自 `challsmith.env` 的 `WEB_ADMIN_USER`、`WEB_ADMIN_PASSWORD`。
 - `README.md`（英文）與 `README_ZH-TW.md`（繁體中文）內容一致，兩份都要更新。
+- 本專案自己計算的 hash 一律使用 BLAKE3（Python 用 `blake3` 套件），包括題目內容 hash、service hash（image tag）與 session token hash。上游提供的 checksum（安裝指令驗證 pulumi-docker 的 SHA-1 與 oras 的 SHA-256）照上游格式，不在此列。
 - commit 訊息結尾加上 `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`。
 
 ## Review Focus
@@ -133,7 +134,7 @@ challsmith/
   - `parse_challenge_yml(data: bytes) -> ChallengeMeta`
   - `safe_relpath(path: str) -> str`：回傳正規化後的 POSIX 相對路徑。空字串、絕對路徑、含 `..` 片段、含反斜線或 NUL 時 raise `ValueError`。
   - `to_folder(meta, files: dict[str, bytes]) -> dict[str, bytes]`：`files` 的 key 是相對於題目資料夾的路徑（例如 `services/app/index.php`），回傳加上 `challenge.yml` 的完整資料夾。`from_folder(folder: dict[str, bytes]) -> tuple[ChallengeMeta, dict[str, bytes]]` 是反向操作，資料夾的 `slug` 以 `challenge.yml` 為準。
-  - `hashing.content_hash(meta: ChallengeMeta, files: dict[str, bytes]) -> str`：sha256 hex。輸入是 `meta.model_dump(mode="json")` 的 canonical JSON（`sort_keys=True`、`separators=(",",":")`），加上依路徑排序的每個檔案。不含 NUL byte 的檔案先把 CRLF 換成 LF。檔案權限本來就不在輸入裡。
+  - `hashing.content_hash(meta: ChallengeMeta, files: dict[str, bytes]) -> str`：BLAKE3 hex（`blake3` 套件，預設 32 bytes 輸出）。輸入是 `meta.model_dump(mode="json")` 的 canonical JSON（`sort_keys=True`、`separators=(",",":")`），加上依路徑排序的每個檔案。不含 NUL byte 的檔案先把 CRLF 換成 LF。檔案權限本來就不在輸入裡。
   - `hashing.service_hash(files: dict[str, bytes], service: str) -> str`：同樣的正規化，只算 `services/<service>/` 底下的檔案，用於 image tag。
   - `archive.extract_zip(data: bytes) -> dict[str, bytes]`、`archive.extract_tar_gz(data: bytes) -> dict[str, bytes]`：每個成員的路徑都經過 `safe_relpath`，只接受一般檔案與目錄，遇到 symlink、hardlink、裝置檔時整份 raise `ValueError`。上限：成員數 2000、解壓後總大小 100 MiB，超過就 raise。
   - `archive.make_tar_gz(folders: dict[str, dict[str, bytes]]) -> bytes`：key 是 slug，輸出 `challenges/<slug>/...`，mtime 固定為 0，成員依路徑排序。
@@ -161,7 +162,7 @@ challsmith/
 
 **Interfaces:**
 - Produces:
-  - `POST /auth/login` body `{"username","password"}`：帳密以 `hmac.compare_digest` 比對 `Settings`，成功時產生 `secrets.token_urlsafe(32)`，資料庫只存它的 sha256，有效期 12 小時，回 `{"token": ..., "expires_at": ...}`。失敗回 401，不區分帳號錯還是密碼錯。
+  - `POST /auth/login` body `{"username","password"}`：帳密以 `hmac.compare_digest` 比對 `Settings`，成功時產生 `secrets.token_urlsafe(32)`，資料庫只存它的 BLAKE3 hash，有效期 12 小時，回 `{"token": ..., "expires_at": ...}`。失敗回 401，不區分帳號錯還是密碼錯。
   - `POST /auth/logout`：刪掉目前的 session，回 204。
   - `GET /auth/me`：回 `{"username": ...}`。
   - `require_session`：FastAPI dependency，讀 `Authorization: Bearer <token>`，token 不存在或過期時回 401。除了 `/health` 與 `/auth/login`，所有 router 都以 `dependencies=[Depends(require_session)]` 掛上，包括之後各 task 新增的 router。
