@@ -9,8 +9,9 @@ async function forward(req: NextRequest, ctx: Ctx) {
   if (denied) return denied;
   const { path } = await ctx.params;
   if (path.some((s) => s === "." || s === ".." || s.includes("/"))) return json({ detail: "bad path" }, 400);
-  // login/logout only through their own routes, so the raw token never reaches the browser
-  if (path[0].toLowerCase() === "auth") return json({ detail: "forbidden" }, 403);
+  // login/logout only through their own routes, so the raw token never reaches the browser; GET auth/me only names the account
+  const me = req.method === "GET" && path.length === 2 && path[1] === "me";
+  if (path[0].toLowerCase() === "auth" && !me) return json({ detail: "forbidden" }, 403);
   const token = req.cookies.get(COOKIE)?.value;
   if (!token) return json({ detail: "not logged in" }, 401);
   const headers: Record<string, string> = { Authorization: `Bearer ${token}` }; // never forward Cookie
