@@ -28,10 +28,12 @@ def cleanup(
 
 @router.get("/cleanup/images")
 def image_plan(
+    db: Session = Depends(get_session),
     ctfd=Depends(deps.get_ctfd_client),
     docker=Depends(deps.get_docker_ops),
     registry=Depends(deps.get_registry_client),
 ):
+    cleanup_service.refuse_if_publishing(db)
     try:
         return asdict(image_cleanup_service.plan(docker, registry, ctfd, lambda _: None))
     except Exception as e:

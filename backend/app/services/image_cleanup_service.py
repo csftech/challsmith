@@ -50,6 +50,8 @@ def ctfd_images(additionals: list[dict]) -> set[str]:
     """Images the CTFd challenges run: single `image`, multi `services[].image` (a JSON string)."""
     out = set()
     for add in additionals:
+        if not add.get("image") and not add.get("services"):
+            raise ValueError(f"a dynamic_iac challenge has neither image nor services in additional: {add}")
         if add.get("image"):
             out.add(add["image"])
         services = add.get("services") or []
@@ -139,7 +141,10 @@ def registry_hosts() -> set[str]:
 def plan(docker, registry, ctfd, log) -> CleanupPlan:
     s = get_settings()
     keep = {p.strip(): "keep list" for p in s.cleanup_keep_images.split(",") if p.strip()}
-    for image in sorted(template_images(Path(s.templates_dir))):
+    bases = template_images(Path(s.templates_dir))
+    if not bases:  # a missing templates dir must not make every base image look unused
+        raise RuntimeError(f"no template base images found under {s.templates_dir}")
+    for image in sorted(bases):
         keep.setdefault(image, "template base image")
     return decide(
         docker.list_images(log),
@@ -161,15 +166,22 @@ def garbage_collect(docker, registry, log, wait: float = 60) -> None:
     """Stop the registry, garbage-collect its volume, start it again whatever happened."""
     cid, image, volume = docker.compose_container("challsmith", "registry", "/var/lib/registry", log)
     docker.stop_container(cid, log)
+    gc_error = None
     try:
         docker.registry_gc(image, volume, GC_CONFIG, log)
-    finally:
+    except Exception as e:
+        gc_error = e
+    try:
         docker.start_container(cid, log)
         deadline = time.monotonic() + wait
         while not registry.ping():
             if time.monotonic() > deadline:
                 raise RuntimeError("the registry did not answer on /v2/ after the restart")
             time.sleep(1)
+    except Exception as e:
+        raise RuntimeError(f"{e}" + (f" (garbage-collect had failed first: {gc_error})" if gc_error else "")) from e
+    if gc_error is not None:
+        raise gc_error
 
 
 def execute(p: CleanupPlan, docker, registry, log) -> dict:

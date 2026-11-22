@@ -76,3 +76,27 @@ def test_set_config_patches_configs():
     make(ok_login(calls, lambda r: (bodies.append(json.loads(r.content)), httpx.Response(200, json={"success": True}))[1])).set_config("chall-manager:chall-manager_mana_total", 0)
     assert ("PATCH", "/api/v1/configs", "abc123") in calls
     assert bodies == [{"chall-manager:chall-manager_mana_total": 0}]
+
+
+def iac_client(listed, details):
+    def extra(req):
+        if req.url.path == "/api/v1/challenges":
+            return httpx.Response(200, json={"success": True, "data": listed})
+        cid = int(req.url.path.rsplit("/", 1)[1])
+        return httpx.Response(200, json={"success": True, "data": details[cid]})
+
+    return make(ok_login([], extra))
+
+
+def test_list_iac_additional():
+    c = iac_client([{"id": 1, "type": "dynamic_iac"}, {"id": 2, "type": "standard"}], {1: {"additional": {"image": "a:1"}}})
+    assert c.list_iac_additional() == [{"image": "a:1"}]
+
+
+@pytest.mark.parametrize("listed, details", [
+    ([{"id": 1}], {}),  # no type
+    ([{"id": 1, "type": "dynamic_iac"}], {1: {"name": "x"}}),  # no additional
+])
+def test_list_iac_additional_fails_closed(listed, details):
+    with pytest.raises(ctfd_client.CtfdError):
+        iac_client(listed, details).list_iac_additional()

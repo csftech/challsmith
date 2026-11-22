@@ -1,13 +1,16 @@
 import httpx2 as httpx
 import pytest
 from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 from app.api import deps
-from app.clients import chall_manager_client
+from app.clients import chall_manager_client, ctfd_client
+from app.core.db import get_engine
 from app.main import app
 from app.models import Challenge, WebSession
-from app.services import challenge_service, cleanup_service
-from app.services.errors import BadGateway
+from app.repositories import setting_repository
+from app.services import challenge_service, cleanup_service, publish_service
+from app.services.errors import BadGateway, Conflict
 from test_auth import admin_env, bearer, login  # noqa: F401  (fixture reused)
 
 
@@ -263,3 +266,58 @@ def test_delete_instance_404_ok_and_500_raises():
     chall_manager_client.ChallManager("http://cm", transport=stream("", 404)).delete_instance("a", "1")
     with pytest.raises(chall_manager_client.ChallManagerError):
         chall_manager_client.ChallManager("http://cm", transport=stream("", 500)).delete_instance("a", "1")
+
+
+def test_cleanup_refused_while_publishing(db):
+    challenge_service.create_challenge(db, "c1", "php", "C")
+    publish_service.start_run(db, "c1")
+    cm, ctfd, docker, registry = FakeCm(), FakeCtfd(), FakeDocker(), FakeRegistry()
+    with pytest.raises(Conflict, match="publish is running"):
+        cleanup_service.run_cleanup(db, cm, ctfd, docker, registry, lambda _: None)
+    assert not (cm.deleted or ctfd.deleted or docker.calls or registry.deleted)
+    assert setting_repository.get(db, cleanup_service.MARK) is None
+
+
+def test_plan_route_refused_while_publishing(api, db):
+    challenge_service.create_challenge(db, "c1", "php", "C")
+    publish_service.start_run(db, "c1")
+    assert api.get("/cleanup/images").status_code == 409
+
+
+def test_publish_refused_while_cleaning(db):
+    challenge_service.create_challenge(db, "c1", "php", "C")
+    seen = []
+
+    class Probe(FakeCm):
+        def list_instances(self):
+            try:
+                with Session(get_engine()) as other:  # another request, as the publish route would be
+                    publish_service.start_run(other, "c1")
+            except Conflict as e:
+                seen.append(str(e))
+            return []
+
+    cleanup_service.run_cleanup(db, Probe(), FakeCtfd(), FakeDocker(), FakeRegistry(), lambda _: None)
+    assert seen and "cleanup is running" in seen[0]
+    assert setting_repository.get(db, cleanup_service.MARK) is None  # cleared afterwards
+    publish_service.start_run(db, "c1")  # and publishing works again
+
+
+def test_stale_cleanup_mark_does_not_block_publish(db):
+    challenge_service.create_challenge(db, "c1", "php", "C")
+    setting_repository.put(db, cleanup_service.MARK, {"since": "2000-01-01T00:00:00+00:00"})
+    db.commit()
+    publish_service.start_run(db, "c1")
+
+
+def test_ctfd_read_failure_deletes_nothing(db):
+    class BadCtfd(FakeCtfd):
+        def list_iac_additional(self):
+            raise ctfd_client.CtfdError("CTFd challenge 7 has no additional")
+
+    docker, registry = FakeDocker(), FakeRegistry()
+    with pytest.raises(BadGateway, match="no additional"):
+        cleanup_service.run_cleanup(db, FakeCm(), BadCtfd(), docker, registry, lambda _: None)
+    assert docker.calls == [("containers", "challenge-"), ("networks", "challenge-")]  # no rm, prune or gc
+    assert registry.deleted == []
+    assert setting_repository.get(db, cleanup_service.MARK) is None

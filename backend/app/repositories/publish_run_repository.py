@@ -12,6 +12,10 @@ def get_running(db: Session, challenge: Challenge) -> PublishRun | None:
     return db.scalar(select(PublishRun).where(PublishRun.challenge_id == challenge.id, PublishRun.status == "running"))
 
 
+def any_running(db: Session) -> bool:
+    return db.scalar(select(func.count()).select_from(PublishRun).where(PublishRun.status == "running")) > 0
+
+
 def add_running(db: Session, challenge: Challenge) -> PublishRun:
     run = PublishRun(challenge_id=challenge.id, status="running", log="")
     db.add(run)

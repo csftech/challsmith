@@ -4,7 +4,7 @@ import httpx2 as httpx
 import pytest
 
 from app.clients import docker_client, registry_client
-from app.services import image_cleanup_service as ics
+from app.services import image_cleanup_service
 
 HOSTS = {"localhost:5000", "registry:5000"}
 KEEP = {"csftech/php-ext:*": "keep list", "php:8.6.0-cli-alpine3.24": "template base image", "mariadb:11.8": "template base image"}
@@ -12,7 +12,7 @@ L = "localhost:5000/challsmith/"
 
 
 def decide(images=(), used=(), ctfd=(), tags=()):
-    return ics.decide(list(images), set(used), set(ctfd), KEEP, list(tags), HOSTS)
+    return image_cleanup_service.decide(list(images), set(used), set(ctfd), KEEP, list(tags), HOSTS)
 
 
 def kept(p):
@@ -86,19 +86,28 @@ def test_template_images(tmp_path: Path):
     (tmp_path / "t" / "app" / "Dockerfile").write_text(
         "ARG V=1\nFROM --platform=linux/amd64 node:26 AS build\nFROM python:${V}\nFROM scratch\nfrom alpine\n")
     (tmp_path / "t" / "template.yml").write_text("services:\n  - name: db\n    image: mariadb:11.8\n  - name: app\n")
-    assert ics.template_images(tmp_path) == {"node:26", "alpine:latest", "mariadb:11.8"}
+    assert image_cleanup_service.template_images(tmp_path) == {"node:26", "alpine:latest", "mariadb:11.8"}
 
 
 def test_repo_templates_resolve():
-    images = ics.template_images(Path("/app/templates"))
+    images = image_cleanup_service.template_images(Path("/app/templates"))
     assert {"php:8.6.0-cli-alpine3.24", "mariadb:11.8", "alpine:3.24.4"} <= images
 
 
 def test_ctfd_images():
-    adds = [{"image": "a:1"}, {"services": '[{"name": "w", "image": "b:1"}, {"name": "x"}]'}, {}]
-    assert ics.ctfd_images(adds) == {"a:1", "b:1"}
+    adds = [{"image": "a:1"}, {"services": '[{"name": "w", "image": "b:1"}, {"name": "x"}]'}]
+    assert image_cleanup_service.ctfd_images(adds) == {"a:1", "b:1"}
     with pytest.raises(ValueError):
-        ics.ctfd_images([{"services": "not json"}])
+        image_cleanup_service.ctfd_images([{"services": "not json"}])
+    with pytest.raises(ValueError, match="neither image nor services"):
+        image_cleanup_service.ctfd_images([{"flag": "x"}])
+
+
+def test_plan_refuses_without_template_bases(monkeypatch, tmp_path):
+    monkeypatch.setattr(image_cleanup_service, "get_settings", lambda: type("S", (), {
+        "cleanup_keep_images": "", "templates_dir": str(tmp_path)})())
+    with pytest.raises(RuntimeError, match="no template base images"):
+        image_cleanup_service.plan(FakeDocker(), FakeRegistry(), None, lambda _: None)
 
 
 class FakeDocker:
@@ -150,11 +159,11 @@ class FakeRegistry:
 
 
 def test_execute_deletes_each_digest_once_and_restarts_registry():
-    p = ics.CleanupPlan(images=[{"ref": "x:1", "id": "a", "size": 1}, {"ref": "", "id": "b", "size": 2}],
+    p = image_cleanup_service.CleanupPlan(images=[{"ref": "x:1", "id": "a", "size": 1}, {"ref": "", "id": "b", "size": 2}],
                         registry=[{"repo": "challsmith/r", "tag": "1", "digest": "d"},
                                   {"repo": "challsmith/r", "tag": "2", "digest": "d"}], reclaimable_bytes=3)
     docker, registry = FakeDocker(), FakeRegistry()
-    assert ics.execute(p, docker, registry, lambda _: None) == {"images": 2, "registry_tags": 2, "reclaimed_bytes": 3}
+    assert image_cleanup_service.execute(p, docker, registry, lambda _: None) == {"images": 2, "registry_tags": 2, "reclaimed_bytes": 3}
     assert registry.deleted == [("challsmith/r", "d")]
     assert docker.calls == [("rm", "x:1"), ("prune",), ("stop", "cid"),
                             ("gc", "registry:3", "challsmith_registry", "/etc/distribution/config.yml"), ("start", "cid")]
@@ -163,15 +172,23 @@ def test_execute_deletes_each_digest_once_and_restarts_registry():
 def test_gc_failure_still_restarts_registry():
     docker = FakeDocker(fail_gc=True)
     with pytest.raises(docker_client.DockerError):
-        ics.garbage_collect(docker, FakeRegistry(), lambda _: None)
+        image_cleanup_service.garbage_collect(docker, FakeRegistry(), lambda _: None)
     assert docker.calls[-1] == ("start", "cid")
+
+
+def test_gc_and_restart_failures_both_reported():
+    registry = FakeRegistry()
+    registry.ping = lambda: False
+    with pytest.raises(RuntimeError) as e:
+        image_cleanup_service.garbage_collect(FakeDocker(fail_gc=True), registry, lambda _: None, wait=0)
+    assert "did not answer" in str(e.value) and "gc broke" in str(e.value)
 
 
 def test_remove_repos_keeps_shared_digest():
     docker = FakeDocker([("a", L + "gone-app:1", 1), ("b", L + "keep-app:1", 1), ("c", "", 1)])
     registry = FakeRegistry([("challsmith/gone-app", "1", "d1"), ("challsmith/gone-app", "2", "shared"),
                              ("challsmith/keep-app", "1", "shared")])
-    ics.remove_repos(docker, registry, {"challsmith/gone-app"}, lambda _: None)
+    image_cleanup_service.remove_repos(docker, registry, {"challsmith/gone-app"}, lambda _: None)
     assert docker.calls == [("rm", L + "gone-app:1")]
     assert registry.deleted == [("challsmith/gone-app", "d1")]
 
