@@ -32,8 +32,8 @@
 - `slug` 必須符合 `^[a-z0-9][a-z0-9-]{0,47}$`，service 名稱必須符合 `^[a-z0-9-]+$`（與 `scenarios/internal/scenario/config.go` 的 `nameRe` 一致）。
 - web app 只有一個管理者帳號，帳密來自 `challsmith.env` 的 `WEB_ADMIN_USER`、`WEB_ADMIN_PASSWORD`。
 - `README.md`（英文）與 `README_ZH-TW.md`（繁體中文）內容一致，兩份都要更新。
-- api 的模組依「檔案結構」的資料夾分層：`core/`、`models/`、`formats/`、`clients/`、`services/`、`routers/`、`cli/`。router 只處理 HTTP（解析請求、呼叫 service、轉換錯誤成狀態碼），業務邏輯放在 `services/`，外部系統的呼叫放在 `clients/`。以下各 task 寫到的 `docker_ops.X`、`ctfd.X`、`gitrepo.X`、`chall_manager.X`、`publish.X`、`sync.X`、`cleanup.X`、`templates.X`、`challenge_format.X`，分別位於 `clients/docker.py`、`clients/ctfd.py`、`clients/git.py`、`clients/chall_manager.py`、`services/publish.py`、`services/sync.py`、`services/cleanup.py`、`services/templates.py`、`formats/challenge.py`，路由一律放在 `routers/` 的同名檔案。
-- 跨層呼叫時引用模組，不引用函式，讓呼叫端一眼看出呼叫的是哪一層。為此 `services/`、`clients/`、`formats/` 的檔名帶上層別後綴：`services/<名稱>_service.py`、`clients/<名稱>_client.py`、`formats/<名稱>_format.py`，引用時不用 `as`，例如 `from challsmith_api.services import challenge_service`，呼叫時寫 `challenge_service.put_files(...)`，不寫 `from ...challenge_service import put_files`。`routers/` 只由 `main.py` 引用，維持 `routers/challenges.py` 這類名稱。models 的類別、`core.deps` 的 dependency、`get_settings`、`get_session` 與 `services/errors.py` 的例外類別可以直接引用名稱。同一個模組內的呼叫不受此限。下方「檔案結構」與各 task 寫的舊檔名，依此規則對應，例如 `clients/docker.py` 即 `clients/docker_client.py`、`services/publish.py` 即 `services/publish_service.py`、`formats/challenge.py` 即 `formats/challenge_format.py`。
+- api 採 FastAPI 慣用的分層架構（router、service、repository、model），模組依「檔案結構」的資料夾分層：`core/`、`models/`、`repositories/`、`formats/`、`clients/`、`services/`、`routers/`、`cli/`。router 只處理 HTTP（解析請求、呼叫 service、轉換錯誤成狀態碼），業務邏輯放在 `services/`，資料庫的查詢與寫入放在 `repositories/`，外部系統的呼叫放在 `clients/`。只有 repository 可以寫 SQLAlchemy 查詢（`select`、`delete`、`db.get`、`db.add` 等）。transaction 由 service 負責：repository 只做查詢、`add`、`delete` 與必要的 `flush`，不呼叫 `commit` 或 `rollback`。依賴方向只能往下：router → service → repository → model，service 也可以用 `clients/` 與 `formats/`，`core/` 不依賴任何上層。以下各 task 寫到的 `docker_ops.X`、`ctfd.X`、`gitrepo.X`、`chall_manager.X`、`publish.X`、`sync.X`、`cleanup.X`、`templates.X`、`challenge_format.X`，分別位於 `clients/docker.py`、`clients/ctfd.py`、`clients/git.py`、`clients/chall_manager.py`、`services/publish.py`、`services/sync.py`、`services/cleanup.py`、`services/templates.py`、`formats/challenge.py`，路由一律放在 `routers/` 的同名檔案。
+- 跨層呼叫時引用模組，不引用函式，讓呼叫端一眼看出呼叫的是哪一層。為此 `services/`、`clients/`、`formats/` 的檔名帶上層別後綴：`services/<名稱>_service.py`、`repositories/<名稱>_repository.py`、`clients/<名稱>_client.py`、`formats/<名稱>_format.py`，引用時不用 `as`，例如 `from challsmith_api.services import challenge_service`，呼叫時寫 `challenge_service.put_files(...)`，不寫 `from ...challenge_service import put_files`。`routers/` 只由 `main.py` 引用，維持 `routers/challenges.py` 這類名稱。models 的類別、`core.deps` 的 dependency、`get_settings`、`get_session` 與 `services/errors.py` 的例外類別可以直接引用名稱。同一個模組內的呼叫不受此限。下方「檔案結構」與各 task 寫的舊檔名，依此規則對應，例如 `clients/docker.py` 即 `clients/docker_client.py`、`services/publish.py` 即 `services/publish_service.py`、`formats/challenge.py` 即 `formats/challenge_format.py`。
 - 本專案自己計算的 hash 一律使用 BLAKE3（Python 用 `blake3` 套件），包括題目內容 hash、service hash（image tag）與 session token hash。上游提供的 checksum（安裝指令驗證 pulumi-docker 的 SHA-1 與 oras 的 SHA-256）照上游格式，不在此列。
 - commit 訊息結尾加上 `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`。
 
@@ -61,6 +61,8 @@ challsmith/
 │  │  │  ├─ config.py / db.py       Task 1
 │  │  │  └─ deps.py                 Task 3（require_session）
 │  │  ├─ models/                    SQLAlchemy 資料表，一個實體一個檔案，`__init__.py` 匯出全部
+│  │  ├─ repositories/              資料庫的查詢與寫入，一個實體一個檔案（Task 6b）
+│  │  │  └─ challenge_repository.py、web_session_repository.py、setting_repository.py、publish_run_repository.py
 │  │  ├─ formats/                   純函式，不碰資料庫與網路
 │  │  │  ├─ challenge.py            Task 2（ChallengeMeta、驗證、YAML、資料夾讀寫）
 │  │  │  ├─ archive.py              Task 2（安全解壓 zip 與 tar.gz、產生 tar.gz）
@@ -310,10 +312,28 @@ challsmith/
 
 真正的 docker 與 CTFd 在 Task 12 的端對端測試驗證。
 
+### Task 6b：repository 層
+
+使用者在 Task 6 進行中要求加上 repository 層（router、service、repository、model）。這個 task 只搬移資料庫存取的程式碼，不改行為。
+
+**Files:**
+- Create：`api/challsmith_api/repositories/__init__.py`、`challenge_repository.py`（`Challenge` 與 `ChallengeFile`）、`web_session_repository.py`、`setting_repository.py`（Task 7 會用到，這裡先放 `get(db, key)` 與 `put(db, key, value)`）、`publish_run_repository.py`
+- Modify：`services/` 底下所有直接寫 SQLAlchemy 查詢的地方、`main.py` 的 lifespan（如果它直接查 `PublishRun`）、`core/deps.py`（`require_session` 改用 `web_session_repository`，`core` 依賴 `repositories` 是往下，可以）
+
+**Interfaces:**
+- Produces：每個 repository 是一組模組層級函式，第一個參數是 `Session`，例如 `challenge_repository.get_by_slug(db, slug) -> Challenge | None`、`challenge_repository.list_all(db) -> list[Challenge]`、`challenge_repository.files_of(db, challenge) -> dict[str, bytes]`、`challenge_repository.replace_files(db, challenge, files)`、`challenge_repository.put_files(db, challenge, put, remove)`、`publish_run_repository.running_for_update(db, challenge) -> PublishRun | None`。函式名稱由實作者依實際用途決定，在 report 中列出。
+- repository 不 commit、不 rollback、不 raise `services/errors.py` 的例外，查不到時回傳 `None`，由 service 決定要不要 raise `NotFound`。
+- 不改 HTTP 行為、不改資料表、不改測試的斷言。
+
+- [ ] **Step 1：建立 repositories，把 services 與 core 裡的查詢搬過去。**
+- [ ] **Step 2：grep 確認 `services/`、`routers/`、`core/deps.py` 裡沒有 `select(`、`delete(`、`db.get(`、`db.add(`、`db.query(`、`db.execute(`，`repositories/` 裡沒有 `commit(` 與 `rollback(`。**
+- [ ] **Step 3：執行完整測試**，數量與 Task 6 結束時相同，全部通過。在 VM 上 `sudo ./install.sh` 後 api 正常啟動。
+- [ ] **Step 4：commit** `refactor(api): add a repository layer for database access`
+
 ### Task 7：git 與備份壓縮檔
 
 **Files:**
-- Create: `api/challsmith_api/clients/git.py`、`api/challsmith_api/services/sync.py`、`api/challsmith_api/routers/sync.py`
+- Create: `api/challsmith_api/clients/git.py`、`api/challsmith_api/services/sync.py`、`api/challsmith_api/routers/sync.py`；資料庫存取放在 `repositories/`（例如 git 設定用 `setting_repository`）
 - Modify: `api/challsmith_api/main.py`
 - Test: `api/tests/test_sync.py`、`api/tests/test_gitrepo.py`
 
