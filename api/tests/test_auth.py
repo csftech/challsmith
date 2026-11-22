@@ -86,24 +86,30 @@ def test_clear_sessions(client, db):
 
 
 def walk_routes(routes, prefix=""):
-    # Newer FastAPI keeps included routers lazy (_IncludedRouter), so unwrap them.
+    # Second source: newer FastAPI keeps included routers lazy (_IncludedRouter), so unwrap them.
+    # Fails loudly on any route object it cannot classify.
     for r in routes:
         if hasattr(r, "original_router"):
             yield from walk_routes(r.original_router.routes, prefix + r.include_context.prefix)
-        elif getattr(r, "methods", None):
-            yield prefix + r.path, r.methods
+        elif getattr(r, "methods", None) and hasattr(r, "path"):
+            yield prefix + r.path, set(r.methods)
+        else:
+            raise AssertionError(f"unclassifiable route object: {r!r}")
 
 
 def test_all_routes_require_session(client):
     exempt = {"/health", "/auth/login"}
-    checked = 0
+    http = {"GET", "POST", "PUT", "PATCH", "DELETE"}
+    pairs = set()
+    for path, item in app.openapi()["paths"].items():  # public API, works with openapi_url=None
+        pairs |= {(path, m.upper()) for m in item if m.upper() in http}
     for path, methods in walk_routes(app.routes):
+        pairs |= {(path, m) for m in methods & http}
+    assert {("/auth/me", "GET"), ("/auth/logout", "POST")} <= pairs
+    for path, method in sorted(pairs):
         if path in exempt:
             continue
-        for method in methods - {"HEAD", "OPTIONS"}:
-            url = path.replace("{", "").replace("}", "")
-            assert client.request(method, url).status_code == 401, (method, path)
-            checked += 1
-    assert checked >= 2
+        url = path.replace("{", "").replace("}", "")
+        assert client.request(method, url).status_code == 401, (method, path)
     for p in ("/docs", "/redoc", "/openapi.json"):
         assert client.get(p).status_code == 404
