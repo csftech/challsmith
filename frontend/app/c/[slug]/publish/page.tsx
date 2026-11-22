@@ -21,16 +21,21 @@ export default function Publish() {
   useEffect(() => {
     if (runId === null) return;
     let stop = false;
+    let fails = 0;
     let timer: ReturnType<typeof setTimeout>;
     const tick = async () => {
       try {
         const r = await api<Run>(`/publish-runs/${runId}`);
         if (stop) return;
+        fails = 0;
+        setError("");
         setRun(r);
         if (r.status !== "running") return;
       } catch (e) {
         if (stop) return;
         setError((e as Error).message);
+        // 4xx will not fix itself; other errors get a few retries
+        if ((e instanceof ApiError && e.status >= 400 && e.status < 500) || ++fails >= 5) return;
       }
       timer = setTimeout(tick, 1000);
     };

@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { Nav } from "@/app/nav";
 import { api, jsonInit, type Template } from "@/lib/api";
 
 export default function New() {
@@ -38,7 +38,7 @@ export default function New() {
     <>
       <header className="bar">
         <h1>新增題目</h1>
-        <Link className="btn" href="/">回清單</Link>
+        <Nav />
       </header>
       <main>
         <form className="card" onSubmit={create}>
