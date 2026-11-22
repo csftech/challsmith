@@ -4,10 +4,12 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { Switchers } from "@/app/switchers";
-import { ApiError, errorText } from "@/lib/api";
+import { ApiError } from "@/lib/api";
+import { useErrorText } from "@/lib/errors";
 
 export default function Login() {
   const t = useTranslations();
+  const errorText = useErrorText();
   const [error, setError] = useState("");
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
@@ -28,8 +30,7 @@ export default function Login() {
     }
     const body = await res.json().catch(() => ({}));
     const fallback = typeof body.detail === "string" ? body.detail : `HTTP ${res.status}`;
-    // the error key is only known at run time, outside the typed message keys
-    setError(errorText(new ApiError(res.status, fallback, body.detail, body.code), (k) => t(k as never)));
+    setError(errorText(new ApiError(res.status, fallback, body.detail, body.code)));
   }
 
   return (

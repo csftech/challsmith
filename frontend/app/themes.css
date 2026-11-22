@@ -7,6 +7,7 @@
   --zh: "Noto Sans TC", "Microsoft JhengHei", "PingFang TC";
   --log-bg: #0d1117;
   --log-fg: #e6edf3;
+  --backdrop: rgba(0, 0, 0, .35);
 }
 
 [data-theme="signal"] {
@@ -92,8 +93,11 @@
   --primary-bg: #2f5bd3; --primary-fg: #fff; --primary-line: #2f5bd3; --seg-on-bg: #fff; --seg-on-fg: #2f5bd3;
   --ok-bg: #e7f6ec; --ok-fg: #18794e; --ok-line: transparent;
   --warn-bg: #fdf1e3; --warn-fg: #b25e09; --warn-line: transparent;
-  /* per-category chip colours are set by the list page */
   --chip-bg: #e8eefc; --chip-fg: #2f5bd3; --chip-line: transparent; --badge-radius: 999px;
+  /* category chip palette (the list page picks a slot from the category name); other themes keep --chip-* */
+  --cat-0-bg: #e8eefc; --cat-0-fg: #2f5bd3; --cat-1-bg: #e7f6ec; --cat-1-fg: #18794e;
+  --cat-2-bg: #fdf1e3; --cat-2-fg: #b25e09; --cat-3-bg: #e3f4f6; --cat-3-fg: #0e7490;
+  --cat-4-bg: #eef1f5; --cat-4-fg: #364152; --cat-5-bg: #fbe9ee; --cat-5-fg: #b4234d;
   --head-font: var(--font); --head-size: 11.5px; --head-case: none; --head-spacing: 0; --head-weight: 600;
   --sel-bg: #eef3ff;
 }

@@ -62,7 +62,14 @@ export type Summary = {
   publish: "draft" | "published" | "modified";
   sync: "never" | "synced" | "modified";
   updated_at: string;
+  position: number;
+  ctfd_id: number | null;
+  ctfd_missing: boolean;
+  template: string | null;
+  services: number;
+  value: number;
 };
+export type ListResponse = { items: Summary[]; ctfd_ok: boolean };
 export type Template = { name: string; description: string; scenario: string };
 export type Service = {
   name: string;
