@@ -1,7 +1,7 @@
 from alembic import context
 from sqlalchemy import create_engine
 
-from challsmith_api.config import get_settings
+from challsmith_api.core.config import get_settings
 from challsmith_api.models import Base
 
 engine = create_engine(get_settings().database_url)

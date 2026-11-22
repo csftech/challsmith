@@ -1,13 +1,14 @@
 from fastapi import Depends, FastAPI
 
-from . import auth, challenges, routes_templates
+from .core.deps import require_session
+from .routers import auth, challenges, templates
 
 app = FastAPI(title="challsmith", docs_url=None, redoc_url=None, openapi_url=None)
 app.include_router(auth.public)
-# Every later router must be mounted with dependencies=[Depends(auth.require_session)].
+# Every later router must be mounted with dependencies=[Depends(require_session)].
 app.include_router(auth.router)
-app.include_router(routes_templates.router, dependencies=[Depends(auth.require_session)])
-app.include_router(challenges.router, dependencies=[Depends(auth.require_session)])
+app.include_router(templates.router, dependencies=[Depends(require_session)])
+app.include_router(challenges.router, dependencies=[Depends(require_session)])
 
 
 @app.get("/health")

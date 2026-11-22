@@ -6,7 +6,7 @@ import tarfile
 import zipfile
 import zlib
 
-from .challenge_format import safe_relpath
+from .challenge import safe_relpath
 
 MAX_MEMBERS = 2000
 MAX_TOTAL = 100 * 1024 * 1024

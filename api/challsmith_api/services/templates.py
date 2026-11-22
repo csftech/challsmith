@@ -3,8 +3,8 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel
 
-from .challenge_format import ChallengeMeta, InstanceSpec, ServiceSpec
-from .config import get_settings
+from challsmith_api.formats.challenge import ChallengeMeta, InstanceSpec, ServiceSpec
+from challsmith_api.core.config import get_settings
 
 
 class TemplateInfo(BaseModel):

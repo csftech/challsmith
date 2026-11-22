@@ -4,7 +4,7 @@ import zipfile
 import pytest
 from sqlalchemy import select
 
-from challsmith_api.challenges import current_hash, load_challenge
+from challsmith_api.services.challenges import current_hash, load_challenge
 from challsmith_api.models import Challenge
 from test_auth import admin_env, bearer, login  # noqa: F401  (fixture reused)
 

@@ -1,7 +1,7 @@
 import pytest
 
-from challsmith_api import templates
-from challsmith_api.challenge_format import from_folder, to_folder
+from challsmith_api.services import templates
+from challsmith_api.formats.challenge import from_folder, to_folder
 from test_auth import admin_env, bearer, login  # noqa: F401  (fixture reused)
 
 NAMES = {"php", "python-flask", "node-nextjs", "nginx-php-db", "tcp"}

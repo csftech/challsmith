@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from . import templates
+from challsmith_api.services import templates
 
 router = APIRouter()
 

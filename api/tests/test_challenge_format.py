@@ -1,6 +1,6 @@
 import pytest
 
-from challsmith_api.challenge_format import (
+from challsmith_api.formats.challenge import (
     ChallengeMeta, dump_challenge_yml, from_folder, parse_challenge_yml, safe_relpath, to_folder,
 )
 

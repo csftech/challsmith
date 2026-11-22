@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import text
 
-from challsmith_api.config import get_settings
+from challsmith_api.core.config import get_settings
 from challsmith_api.main import app
 from challsmith_api.models import WebSession
 
@@ -77,7 +77,7 @@ def test_token_not_stored_in_plaintext(client, db):
 
 
 def test_clear_sessions(client, db):
-    from challsmith_api.auth import clear_sessions
+    from challsmith_api.services.auth import clear_sessions
 
     login(client)
     login(client)

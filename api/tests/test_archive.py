@@ -5,7 +5,7 @@ import zipfile
 
 import pytest
 
-from challsmith_api.archive import extract_tar_gz, extract_zip, make_tar_gz
+from challsmith_api.formats.archive import extract_tar_gz, extract_zip, make_tar_gz
 
 
 def _zip(members: dict[str, bytes]) -> bytes:
@@ -86,7 +86,7 @@ def test_make_tar_gz_roundtrip():
 
 def test_zip_running_byte_guard(monkeypatch):
     # zipfile itself bounds reads by header size, so exercise the guard with a lowered cap
-    import challsmith_api.archive as arc
+    import challsmith_api.formats.archive as arc
     monkeypatch.setattr(arc, "MAX_TOTAL", 10)
     with pytest.raises(ValueError, match="too large"):
         arc._read_capped(io.BytesIO(b"x" * 11), 0)

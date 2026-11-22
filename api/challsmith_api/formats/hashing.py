@@ -1,7 +1,7 @@
 from blake3 import blake3
 import json
 
-from .challenge_format import ChallengeMeta
+from .challenge import ChallengeMeta
 
 
 def _norm(data: bytes) -> bytes:

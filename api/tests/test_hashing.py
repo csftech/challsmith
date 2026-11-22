@@ -1,5 +1,5 @@
-from challsmith_api.challenge_format import from_folder, parse_challenge_yml
-from challsmith_api.hashing import content_hash, service_hash
+from challsmith_api.formats.challenge import from_folder, parse_challenge_yml
+from challsmith_api.formats.hashing import content_hash, service_hash
 
 from test_challenge_format import SPEC
 

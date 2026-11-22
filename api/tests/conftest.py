@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from challsmith_api.db import get_engine
+from challsmith_api.core.db import get_engine
 from challsmith_api.main import app
 from challsmith_api.models import Base
 
