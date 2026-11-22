@@ -19,7 +19,7 @@ tags:
     - type-juggling
 category: Web
 name: "strcmp 的陷阱"
-instance: {mana: 1, timeout: 3600}
+instance: {mana: 0, timeout: 3600}
 slug: php-strcmp
 """.encode()
 

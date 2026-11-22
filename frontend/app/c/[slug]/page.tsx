@@ -313,7 +313,7 @@ export default function Editor() {
                 onChange={(e) => setMeta({ instance: { ...meta.instance, timeout: Number(e.target.value) } })} />
             </label>
             <label className="inline">mana
-              <input type="number" min={1} style={{ width: 60 }} value={meta.instance.mana}
+              <input type="number" min={0} style={{ width: 60 }} value={meta.instance.mana}
                 onChange={(e) => setMeta({ instance: { ...meta.instance, mana: Number(e.target.value) } })} />
             </label>
             <label className="inline">記憶體

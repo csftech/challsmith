@@ -77,3 +77,6 @@ class CtfdClient:
 
     def delete_user(self, uid: int) -> None:
         self._api("DELETE", f"/users/{uid}")
+
+    def set_config(self, key: str, value) -> None:
+        self._api("PATCH", "/configs", json={key: value})

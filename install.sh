@@ -142,6 +142,11 @@ for _ in $(seq 60); do
 done
 curl -fsS --noproxy '*' -o /dev/null http://127.0.0.1:5000/v2/ || { echo "Registry did not come up" >&2; exit 1; }
 
+# The plugin reads PLUGIN_SETTINGS_CM_MANA_TOTAL only on CTFd's first start and then keeps the value in
+# CTFd's config, so apply CM_MANA_TOTAL through CTFd's config API on every run (admin credentials come from the api container).
+dc exec -T api python -c "import sys; from app.clients.ctfd_client import CtfdClient; from app.core.config import get_settings; s = get_settings(); CtfdClient(s.ctfd_url, s.ctfd_admin_name, s.ctfd_admin_password).set_config('chall-manager:chall-manager_mana_total', int(sys.argv[1]))" "${CM_MANA_TOTAL:-0}" \
+  || { echo "Cannot apply CM_MANA_TOTAL to CTFd" >&2; exit 1; }
+
 # 9b. GitHub release artifacts (checksum-verified; oras: sha256, pulumi-docker: SHA-1): Pulumi docker plugin and oras.
 # pulumi-docker version comes from infra/scenarios/go.mod; the oras version is defined here only.
 ORAS_VERSION=1.4.0

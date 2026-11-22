@@ -35,7 +35,7 @@ class ServiceSpec(BaseModel):
 
 class InstanceSpec(BaseModel):
     timeout: int = Field(3600, gt=0)
-    mana: int = Field(1, gt=0)
+    mana: int = Field(0, ge=0)  # 0 = free; only counts when CM_MANA_TOTAL > 0
     memory: str = "256m"
     cpus: str = "0.5"
 
