@@ -1,5 +1,6 @@
 """The authoring web app against the real stack: everything goes through the BFF on :3000."""
 import re
+import secrets
 
 import requests
 from conftest import (CTFD, WEB, check, ctfd_challenge, get_until, put_file, publish, start_instance,
@@ -82,3 +83,50 @@ def test_backup_roundtrip(web, new_challenge):
     assert r.ok and r.content
     items = check(web.post(f"{WEB}/api/sync/archive/preview", files={"file": ("b.tar.gz", r.content)}))["items"]
     assert items and all(i["status"] == "unchanged" for i in items), items
+
+
+def _categorised(web, new_challenge, category):
+    slug = new_challenge("php")
+    meta = check(web.get(f"{WEB}/api/challenges/{slug}"))["meta"]
+    check(web.put(f"{WEB}/api/challenges/{slug}", json={**meta, "category": category}))
+    return slug
+
+
+def _order(web):
+    return [i["slug"] for i in check(web.get(f"{WEB}/api/challenges"))["items"]]
+
+
+def _public_names(user):
+    return [c["name"] for c in check(user.get(CTFD + "/api/v1/challenges"))["data"]]
+
+
+def _save_order(web, order):
+    assert check(web.put(f"{WEB}/api/challenges/order", json={"order": order})) == {"ok": True}
+
+
+def test_reorder_syncs_to_ctfd(web, admin, new_challenge, register_user):
+    cat_a, cat_b = f"e2e-a-{secrets.token_hex(3)}", f"e2e-b-{secrets.token_hex(3)}"
+    one, two = _categorised(web, new_challenge, cat_a), _categorised(web, new_challenge, cat_a)
+    for slug in (one, two):
+        published(web, admin, slug)
+    user = register_user("order")
+    order = _order(web)
+    assert order.index(one) < order.index(two)
+
+    swapped = list(order)
+    i, j = swapped.index(one), swapped.index(two)
+    swapped[i], swapped[j] = two, one
+    _save_order(web, swapped)
+    assert _order(web) == swapped
+    for slug in (one, two):  # CTFd's admin view agrees with the web app's order
+        assert ctfd_challenge(admin, slug)["position"] == swapped.index(slug) + 1
+    names = _public_names(user)
+    assert names.index(two) < names.index(one)
+
+    third = _categorised(web, new_challenge, cat_b)
+    published(web, admin, third)
+    order = _order(web)
+    assert order[-1] == third  # a new challenge goes last
+    front = [s for s in order if s == third] + [s for s in order if s != third]
+    _save_order(web, front)
+    assert _public_names(user)[0] == third

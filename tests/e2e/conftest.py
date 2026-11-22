@@ -150,7 +150,14 @@ def new_challenge(web):
 
     yield create
     for slug in slugs:
-        r = web.delete(f"{WEB}/api/challenges/{slug}", timeout=INSTANCE_TIMEOUT)
+        for _ in range(3):  # every BFF call logs in to CTFd again, and CTFd throttles logins (429 -> 502 here)
+            try:
+                r = web.delete(f"{WEB}/api/challenges/{slug}", timeout=INSTANCE_TIMEOUT)
+                if r.status_code != 502:
+                    break
+            except requests.ConnectionError:  # the BFF closed the idle keep-alive connection during the wait
+                pass
+            time.sleep(6)
         assert r.ok or r.status_code == 404, f"cleanup of {slug}: {r.status_code} {r.text[:200]}"
 
 
