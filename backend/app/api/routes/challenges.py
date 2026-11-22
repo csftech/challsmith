@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.clients import ctfd_client
 from app.core.db import get_session
-from app.api.deps import get_ctfd_client
+from app.api.deps import get_ctfd_client, get_docker_ops, get_registry_client
 from app.schemas import challenge_schema
 from app.schemas.challenge_schema import NewChallenge
 from app.services import challenge_service
@@ -39,9 +39,11 @@ def remove_challenge(
     slug: str,
     db: Session = Depends(get_session),
     ctfd: ctfd_client.CtfdClient = Depends(get_ctfd_client),
+    docker=Depends(get_docker_ops),
+    registry=Depends(get_registry_client),
 ):
     ch, _, _ = challenge_service.load_challenge(db, slug)
-    challenge_service.delete_challenge(db, ch, ctfd)
+    challenge_service.delete_challenge(db, ch, ctfd, docker, registry)
     return {"ok": True}
 
 

@@ -80,3 +80,12 @@ class CtfdClient:
 
     def set_config(self, key: str, value) -> None:
         self._api("PATCH", "/configs", json={key: value})
+
+    def list_iac_additional(self) -> list[dict]:
+        """`additional` of every dynamic_iac challenge, hidden ones included (only the admin detail view has it)."""
+        listed = self._api("GET", "/challenges", params={"view": "admin"})["data"]
+        return [
+            self._api("GET", f"/challenges/{c['id']}", params={"view": "admin"})["data"].get("additional") or {}
+            for c in listed
+            if c.get("type") == "dynamic_iac"
+        ]

@@ -1,7 +1,7 @@
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
-from app.clients import chall_manager_client, ctfd_client, docker_client
+from app.clients import chall_manager_client, ctfd_client, docker_client, registry_client
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.models import WebSession
@@ -41,3 +41,11 @@ def get_chall_manager():
         yield cm
     finally:
         cm.close()
+
+
+def get_registry_client():
+    registry = registry_client.RegistryClient(get_settings().registry_url)
+    try:
+        yield registry
+    finally:
+        registry.close()

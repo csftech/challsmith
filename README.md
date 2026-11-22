@@ -125,9 +125,22 @@ Before exporting the VM for trainees, open the Cleanup page of the web app and t
 
 - every chall-manager instance, and leftover `challenge-*` containers and networks;
 - every CTFd user that is not an admin;
-- every web app session, so you are logged out.
+- every web app session, so you are logged out;
+- every Docker image and local-registry tag that nothing needs, then the build cache and unused anonymous volumes (named volumes stay). The registry is garbage-collected afterwards so the space is really freed; it is stopped for a moment while that runs.
 
-It keeps the challenges, the images in the registry, the git settings and the CTFd admin account.
+These images and registry tags are always kept:
+
+- images used by any container, running or stopped (all challsmith services);
+- images that a CTFd challenge runs, read from each `dynamic_iac` challenge's `additional` (single `image`, multi `services[].image`);
+- the scenarios, `challsmith/scenarios/*` in the registry;
+- the template base images (every `FROM` in `backend/templates/**/Dockerfile` and every image-only service in a `template.yml`, such as `mariadb:11.8`, local and as registry mirror copies);
+- what `CLEANUP_KEEP_IMAGES` in `challsmith.env` lists: comma-separated globs on `repo:tag`, default `csftech/php-ext:*,golang:1.27-alpine` (golang builds the scenarios at install).
+
+A registry tag is deleted by its manifest digest, so a tag whose digest a kept tag also points to stays. Everything else goes: old builds, e2e images, images pulled by hand. They come back through the Docker Hub mirror or the next publish. The Cleanup page lists what will be removed and what is kept before you confirm; `sudo ./cleanup.sh --dry-run` prints the same list and changes nothing. The list is computed again after the instances are gone, so the run can remove the images that only those instances used.
+
+Deleting a challenge in the web app also removes its built images, locally and in the registry (no garbage collection then; the next cleanup frees the space).
+
+It keeps the challenges, the git settings and the CTFd admin account.
 
 ## Create a challenge manually
 

@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from app.services import auth_service
+from app.services import auth_service, image_cleanup_service
 from app.services.errors import BadGateway
 
 CONFIRM = "CLEANUP"
@@ -18,8 +18,9 @@ def reset_instances(cm, docker, log) -> tuple[int, int, int]:
     return len(instances), containers, networks
 
 
-def run_cleanup(db: Session, cm, ctfd, docker, log) -> dict:
-    """Instances, leftover scenario containers/networks, trainee users, then web sessions; stops at the first failure."""
+def run_cleanup(db: Session, cm, ctfd, docker, registry, log) -> dict:
+    """Instances, leftover scenario containers/networks, trainee users, web sessions, then unused images;
+    stops at the first failure."""
     try:
         instances, containers, networks = reset_instances(cm, docker, log)
         trainees = [u["id"] for u in ctfd.list_users() if ctfd.get_user(u["id"])["type"] != "admin"]
@@ -31,4 +32,12 @@ def run_cleanup(db: Session, cm, ctfd, docker, log) -> dict:
         raise BadGateway(f"cleanup stopped: {e}")
     sessions = auth_service.clear_sessions(db)
     log(f"cleared {sessions} web sessions")
-    return {"instances": instances, "containers": containers, "networks": networks, "users": len(trainees), "sessions": sessions}
+    try:
+        # planned only now: the instance containers are gone, so their images no longer count as in use
+        images = image_cleanup_service.execute(image_cleanup_service.plan(docker, registry, ctfd, log), docker, registry, log)
+        log(f"removed {images['images']} images and {images['registry_tags']} registry tags")
+    except Exception as e:
+        log(f"failed: {e}")
+        raise BadGateway(f"cleanup stopped at unused images: {e}")
+    return {"instances": instances, "containers": containers, "networks": networks, "users": len(trainees),
+            "sessions": sessions, **images}

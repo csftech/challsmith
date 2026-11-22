@@ -60,3 +60,61 @@ class DockerOps:
         if ids:
             self._run(["docker", "network", "rm", *ids], log)
         return len(ids)
+
+    def list_images(self, log: Log) -> list[tuple[str, str, int]]:
+        """(image id, "repo:tag" or "" when untagged, size in bytes), one row per tag."""
+        out = self._run(["docker", "images", "--no-trunc", "--format", "{{.ID}}\t{{.Repository}}\t{{.Tag}}"], log, quiet=True)
+        rows = [line.split("\t") for line in out if line]
+        ids = sorted({r[0] for r in rows})
+        sizes: dict[str, int] = {}
+        if ids:
+            for line in self._run(["docker", "image", "inspect", "--format", "{{.Id}}\t{{.Size}}", *ids], log, quiet=True):
+                if line:
+                    i, size = line.split("\t")
+                    sizes[i] = int(size)
+        return [(i, "" if "<none>" in (repo, tag) else f"{repo}:{tag}", sizes.get(i, 0)) for i, repo, tag in rows]
+
+    def container_images(self, log: Log) -> set[str]:
+        """Image ids and image names of every container, running or stopped. The name counts too: a compose
+        service whose tag was rebuilt still runs the old id, and its current tag must not go."""
+        ids = self._run(["docker", "ps", "-a", "-q", "--no-trunc"], log, quiet=True)
+        if not ids:
+            return set()
+        out = self._run(["docker", "inspect", "--format", "{{.Image}}\t{{.Config.Image}}", *ids], log, quiet=True)
+        return {v for line in out for v in line.split("\t") if v}
+
+    def remove_image(self, ref: str, log: Log) -> None:
+        # never -f: an image a container still uses must make this fail
+        self._run(["docker", "image", "rm", "--", ref], log)
+
+    def prune(self, log: Log) -> None:
+        """Dangling images, all build cache, anonymous unused volumes (named volumes stay: no -a)."""
+        self._run(["docker", "image", "prune", "-f"], log)
+        self._run(["docker", "builder", "prune", "-af"], log)
+        self._run(["docker", "volume", "prune", "-f"], log)
+
+    def compose_container(self, project: str, service: str, mount: str, log: Log) -> tuple[str, str, str]:
+        """(container id, image, volume mounted at `mount`) of a compose service's only container."""
+        ids = self._run(["docker", "ps", "-a", "-q", "--filter", f"label=com.docker.compose.project={project}",
+                         "--filter", f"label=com.docker.compose.service={service}"], log, quiet=True)
+        if len(ids) != 1:
+            raise DockerError(f"expected one {project} {service} container, found {len(ids)}")
+        fmt = "{{.Config.Image}}\t{{range .Mounts}}{{if eq .Destination \"" + mount + "\"}}{{.Name}}{{end}}{{end}}"
+        image, volume = self._run(["docker", "inspect", "--format", fmt, ids[0]], log, quiet=True)[0].split("\t")
+        if not volume:
+            raise DockerError(f"{service} container has no volume at {mount}")
+        return ids[0], image, volume
+
+    def stop_container(self, cid: str, log: Log) -> None:
+        self._run(["docker", "stop", "--", cid], log)
+
+    def start_container(self, cid: str, log: Log) -> None:
+        self._run(["docker", "start", "--", cid], log)
+
+    def registry_gc(self, image: str, volume: str, config: str, log: Log) -> None:
+        """Run `registry garbage-collect --delete-untagged` on the registry volume (registry must be stopped)."""
+        cmd = ["docker", "run", "--rm", "-v", f"{volume}:/var/lib/registry", "--entrypoint", "registry", image,
+               "garbage-collect", "--delete-untagged", config]
+        log("$ " + " ".join(cmd))
+        out = self._run(cmd, log, quiet=True)  # one line per blob: summarise instead
+        log(f"registry garbage-collect: {sum('eligible for deletion' in line for line in out)} blobs deleted")

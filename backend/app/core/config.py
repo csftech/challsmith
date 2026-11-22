@@ -13,6 +13,8 @@ class Settings:
     ctfd_admin_password: str
     chall_manager_url: str
     registry_prefix: str
+    registry_url: str
+    cleanup_keep_images: str
     scenario_single: str
     scenario_multi: str
     templates_dir: str
@@ -34,6 +36,8 @@ def get_settings() -> Settings:
         ctfd_admin_password=e("CTFD_ADMIN_PASSWORD", ""),
         chall_manager_url=e("CHALL_MANAGER_URL", "http://chall-manager:8080"),
         registry_prefix=e("REGISTRY_PREFIX", "localhost:5000/challsmith"),
+        registry_url=e("REGISTRY_URL", "http://registry:5000"),
+        cleanup_keep_images=e("CLEANUP_KEEP_IMAGES", "csftech/php-ext:*,golang:1.27-alpine"),
         scenario_single=e("SCENARIO_SINGLE", "registry:5000/challsmith/scenarios/single:v1"),
         scenario_multi=e("SCENARIO_MULTI", "registry:5000/challsmith/scenarios/multi:v1"),
         templates_dir=e("TEMPLATES_DIR", "/app/templates"),

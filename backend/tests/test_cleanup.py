@@ -37,6 +37,9 @@ class FakeCtfd:
             raise RuntimeError("ctfd down")
         self.deleted.append(uid)
 
+    def list_iac_additional(self):
+        return [{"image": "localhost:5000/challsmith/live-app:1"}]
+
 
 class FakeDocker:
     def __init__(self):
@@ -50,16 +53,68 @@ class FakeDocker:
         self.calls.append(("networks", prefix))
         return 1
 
+    def list_images(self, log):
+        return [("sha256:a", "localhost:5000/challsmith/live-app:1", 5), ("sha256:b", "localhost:5000/challsmith/old-app:1", 7)]
+
+    def container_images(self, log):
+        return set()
+
+    def remove_image(self, ref, log):
+        self.calls.append(("rm", ref))
+
+    def prune(self, log):
+        self.calls.append(("prune",))
+
+    def compose_container(self, project, service, mount, log):
+        return "cid", "registry:3", "vol"
+
+    def stop_container(self, cid, log):
+        self.calls.append(("stop", cid))
+
+    def start_container(self, cid, log):
+        self.calls.append(("start", cid))
+
+    def registry_gc(self, image, volume, config, log):
+        self.calls.append(("gc",))
+
+
+class FakeRegistry:
+    def __init__(self):
+        self.deleted = []
+
+    def catalog(self):
+        return ["challsmith/live-app", "challsmith/old-app"]
+
+    def tags(self, repo):
+        return ["1"]
+
+    def digest(self, repo, tag):
+        return "sha256:" + repo
+
+    def delete(self, repo, digest):
+        self.deleted.append(repo)
+
+    def ping(self):
+        return True
+
+    def close(self):
+        pass
+
+
+IMAGE_STEP = [("rm", "localhost:5000/challsmith/old-app:1"), ("prune",), ("stop", "cid"), ("gc",), ("start", "cid")]
+
 
 def test_run_cleanup(db):
     challenge_service.create_challenge(db, "c1", "php", "C")
     db.add(WebSession(token_hash="x", expires_at=db.scalar(select(func.now()))))
     db.commit()
-    cm, ctfd, docker, lines = FakeCm(), FakeCtfd(), FakeDocker(), []
-    out = cleanup_service.run_cleanup(db, cm, ctfd, docker, lines.append)
-    assert out == {"instances": 3, "containers": 2, "networks": 1, "users": 2, "sessions": 1}
+    cm, ctfd, docker, registry, lines = FakeCm(), FakeCtfd(), FakeDocker(), FakeRegistry(), []
+    out = cleanup_service.run_cleanup(db, cm, ctfd, docker, registry, lines.append)
+    assert out == {"instances": 3, "containers": 2, "networks": 1, "users": 2, "sessions": 1,
+                   "images": 1, "registry_tags": 1, "reclaimed_bytes": 7}
     assert len(cm.deleted) == 3 and ctfd.deleted == [2, 3]
-    assert docker.calls == [("containers", "challenge-"), ("networks", "challenge-")]
+    assert docker.calls == [("containers", "challenge-"), ("networks", "challenge-"), *IMAGE_STEP]
+    assert registry.deleted == ["challsmith/old-app"]
     assert db.scalar(select(func.count()).select_from(WebSession)) == 0
     assert db.scalar(select(func.count()).select_from(Challenge)) == 1
 
@@ -102,7 +157,7 @@ def test_run_cleanup_never_deletes_when_user_lookup_fails(db):
 
     ctfd = Broken()
     with pytest.raises(BadGateway, match="lookup failed"):
-        cleanup_service.run_cleanup(db, FakeCm(), ctfd, FakeDocker(), lambda _: None)
+        cleanup_service.run_cleanup(db, FakeCm(), ctfd, FakeDocker(), FakeRegistry(), lambda _: None)
     assert ctfd.deleted == []
 
 
@@ -111,7 +166,7 @@ def test_run_cleanup_stops_on_failure(db):
     db.commit()
     lines = []
     with pytest.raises(BadGateway, match="ctfd down"):
-        cleanup_service.run_cleanup(db, FakeCm(), FakeCtfd(fail=True), FakeDocker(), lines.append)
+        cleanup_service.run_cleanup(db, FakeCm(), FakeCtfd(fail=True), FakeDocker(), FakeRegistry(), lines.append)
     assert db.scalar(select(func.count()).select_from(WebSession)) == 1
     assert any("instances" in line for line in lines)
 
@@ -122,6 +177,7 @@ def api(client, db):
     app.dependency_overrides[deps.get_chall_manager] = lambda: FakeCm()
     app.dependency_overrides[deps.get_ctfd_client] = lambda: FakeCtfd()
     app.dependency_overrides[deps.get_docker_ops] = lambda: FakeDocker()
+    app.dependency_overrides[deps.get_registry_client] = lambda: FakeRegistry()
     yield client
     app.dependency_overrides.clear()
 
@@ -136,9 +192,52 @@ def test_cleanup_route_bad_confirm_touches_nothing(api):
 
 
 def test_cleanup_route_ok(api):
+    docker, registry = FakeDocker(), FakeRegistry()
+    app.dependency_overrides[deps.get_docker_ops] = lambda: docker
+    app.dependency_overrides[deps.get_registry_client] = lambda: registry
     r = api.post("/cleanup", json={"confirm": "CLEANUP"})
     assert r.status_code == 200 and r.json()["users"] == 2 and r.json()["sessions"] == 1
+    assert r.json()["images"] == 1 and r.json()["registry_tags"] == 1 and r.json()["reclaimed_bytes"] == 7
+    assert docker.calls[2:] == IMAGE_STEP and registry.deleted == ["challsmith/old-app"]
     assert api.get("/auth/me").status_code == 401
+
+
+def test_run_cleanup_image_step_failure_is_reported(db):
+    class NoGc(FakeDocker):
+        def registry_gc(self, image, volume, config, log):
+            raise RuntimeError("gc broke")
+
+    docker = NoGc()
+    with pytest.raises(BadGateway, match="gc broke"):
+        cleanup_service.run_cleanup(db, FakeCm(), FakeCtfd(), docker, FakeRegistry(), lambda _: None)
+    assert docker.calls[-1] == ("start", "cid")
+
+
+def test_image_plan_route(api):
+    r = api.get("/cleanup/images")
+    assert r.status_code == 200
+    body = r.json()
+    assert [i["ref"] for i in body["images"]] == ["localhost:5000/challsmith/old-app:1"]
+    assert body["registry"] == [{"repo": "challsmith/old-app", "tag": "1", "digest": "sha256:challsmith/old-app"}]
+    assert body["kept_images"] == {"CTFd challenge": ["localhost:5000/challsmith/live-app:1"]}
+    assert body["reclaimable_bytes"] == 7
+
+
+def test_image_plan_route_requires_session(client):
+    assert client.get("/cleanup/images").status_code == 401
+
+
+def test_cli_dry_run_changes_nothing(monkeypatch, capsys):
+    from app.cli import cleanup as cli
+
+    docker, registry = FakeDocker(), FakeRegistry()
+    monkeypatch.setattr(cli.ctfd_client, "CtfdClient", lambda *a: FakeCtfd())
+    monkeypatch.setattr(cli.docker_client, "DockerOps", lambda *a: docker)
+    monkeypatch.setattr(cli.registry_client, "RegistryClient", lambda *a: registry)
+    assert cli.main(["--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "localhost:5000/challsmith/old-app:1" in out and "Registry tags to remove: 1" in out
+    assert docker.calls == [] and registry.deleted == []
 
 
 def stream(lines, status=200):
