@@ -198,6 +198,10 @@ fi
 # The proxy goes only to the golang build container (module download), never to a challenge.
 sudo -u aps -H env GOPROXY="${GOPROXY:-}" GOSUMDB="${GOSUMDB:-}" HTTP_PROXY="$HTTP_PROXY" HTTPS_PROXY="$HTTPS_PROXY" NO_PROXY="$NO_PROXY_ALL" ORAS_BIN="$ORAS_BIN" \
   "$DEST/scripts/push-scenarios.sh" v1
+# chall-manager caches scenarios by reference (on disk and in memory), so a re-pushed :v1 is
+# only picked up after clearing the cache and restarting it. Running instances are unaffected.
+dc exec -T chall-manager rm -rf /root/.cache/chall-manager/oci
+dc restart chall-manager >/dev/null
 
 # 10. Burp Suite Community
 BURP=/opt/BurpSuiteCommunity
