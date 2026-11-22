@@ -91,3 +91,25 @@ def test_token_never_stored_or_leaked(tmp_path, remote):
 def test_rejects_option_like_branch(tmp_path, remote):
     with pytest.raises(GitError):
         repo_for(tmp_path, remote, branch="--upload-pack=x").fetch()
+
+
+def test_fetch_after_branch_deleted_drops_stale_tracking_ref(tmp_path, remote):
+    repo = repo_for(tmp_path, remote)
+    repo.commit_and_push(folders(), "first", push=True)
+    assert repo.fetch() is True and repo.read_tree()
+    git("branch", "-m", "main", "other", cwd=remote)
+    assert repo.fetch() is False
+    assert repo.read_tree() == {}
+
+
+def test_symlink_invalidates_only_its_slug(tmp_path, remote):
+    repo = repo_for(tmp_path, remote)
+    repo.commit_and_push({**folders(), "c2": {"challenge.yml": b"x"}}, "first", push=True)
+    c = clone(tmp_path, remote)
+    (c / "challenges/c1/link").symlink_to("/etc/passwd")
+    git("add", "-A", cwd=c)
+    git("commit", "-m", "link", cwd=c)
+    git("push", "origin", "main", cwd=c)
+    repo.fetch()
+    tree = repo.read_tree()
+    assert list(tree) == ["c2"] and list(repo.invalid) == ["c1"]

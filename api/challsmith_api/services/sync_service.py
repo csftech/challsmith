@@ -1,12 +1,14 @@
 import secrets
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from sqlalchemy.orm import Session
 
 from challsmith_api.clients import git_client
-from challsmith_api.clients.git_client import GitError, GitRepo
+from challsmith_api.clients.git_client import GitError
 from challsmith_api.core.config import get_settings
 from challsmith_api.formats import archive_format, challenge_format, hashing_format
 from challsmith_api.repositories import challenge_repository, setting_repository
@@ -14,6 +16,7 @@ from challsmith_api.services import challenge_service
 from challsmith_api.services.errors import BadGateway, BadRequest, Conflict, NotFound, TooLarge
 
 PREVIEW_TTL = 30 * 60
+MAX_PREVIEWS = 4
 MAX_UPLOAD = 100 * 1024 * 1024
 DEFAULT_GIT = {"remote_url": "", "username": "", "token": None, "branch": "main", "dir": "challenges",
                "author_name": "challsmith", "author_email": "challsmith@localhost"}
@@ -21,6 +24,7 @@ _URL_PREFIXES = ("https://", "http://", "file://", "/")
 
 # preview_id -> {"expires", "items"}; in-process (single uvicorn worker), lost on restart
 _previews: dict[str, dict] = {}
+_previews_lock = threading.Lock()
 
 
 def git_root() -> Path:
@@ -57,6 +61,8 @@ def put_git_settings(db: Session, values: dict) -> dict:
     for key in ("branch", "dir"):
         if not git_client.valid_ref(values[key]):
             raise BadRequest(f"invalid {key}")
+    if "@" in urlsplit(values["remote_url"]).netloc:
+        raise BadRequest("remote_url must not contain credentials; use the username and token fields")
     old = _git_settings(db)
     if values.get("token") is None:
         values["token"] = old["token"]
@@ -65,7 +71,7 @@ def put_git_settings(db: Session, values: dict) -> dict:
     return get_git_settings(db)
 
 
-def _repo(db: Session) -> GitRepo:
+def _repo(db: Session) -> git_client.GitRepo:
     s = _git_settings(db)
     if not s["remote_url"]:
         raise BadRequest("the git remote is not configured")
@@ -73,7 +79,7 @@ def _repo(db: Session) -> GitRepo:
     proxy = {"http_proxy": cfg.upstream_http_proxy, "https_proxy": cfg.upstream_https_proxy,
              "no_proxy": cfg.upstream_no_proxy}
     try:
-        return GitRepo(git_root(), s, proxy)
+        return git_client.GitRepo(git_root(), s, proxy)
     except GitError as e:
         raise BadRequest(str(e))
 
@@ -99,8 +105,8 @@ def git_export(db: Session, push: bool) -> dict:
     hashes = {slug: _hash_of_folder(f) for slug, f in folders.items()}
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     result = repo.commit_and_push(folders, f"challsmith export {now}", push)
-    # a failed push leaves git without these versions: moving the base would make the old git copy win later
-    if result["error"] is None:
+    # a failed or skipped push leaves origin without these versions: moving the base would let the old copy win later
+    if result["error"] is None and (result["pushed"] or result["commit"] is None):
         for slug, h in hashes.items():
             challenge_repository.update_by_slug(db, slug, {"sync_hash": h})
         db.commit()
@@ -115,14 +121,17 @@ def backup(db: Session) -> tuple[str, bytes]:
 
 # ---- preview / apply ----
 
-def _prune() -> None:
+def _prune() -> None:  # caller holds _previews_lock
     now = time.monotonic()
     for k in [k for k, v in _previews.items() if v["expires"] <= now]:
         del _previews[k]
 
 
-def preview(db: Session, source: dict[str, dict[str, bytes]]) -> dict:
+def preview(db: Session, source: dict[str, dict[str, bytes]], invalid: dict[str, str] | None = None) -> dict:
     items, stored = [], {}
+    for slug, err in sorted((invalid or {}).items()):
+        items.append({"slug": slug, "status": "invalid", "error": err})
+        stored[slug] = {"status": "invalid"}
     for slug, folder in sorted(source.items()):
         try:
             meta, files = challenge_format.from_folder(folder)
@@ -137,22 +146,28 @@ def preview(db: Session, source: dict[str, dict[str, bytes]]) -> dict:
         db_hash = None if ch is None else challenge_service.current_hash(db, ch)
         status = classify(None if ch is None else ch.sync_hash, db_hash, src_hash)
         items.append({"slug": slug, "status": status})
-        stored[slug] = {"status": status, "meta": meta, "files": files, "src_hash": src_hash, "db_hash": db_hash}
-    _prune()
+        stored[slug] = {"status": status, "src_hash": src_hash, "db_hash": db_hash}
+        if status in ("new", "source_changed", "conflict"):  # only these can be written by apply
+            stored[slug].update(meta=meta, files=files)
     pid = secrets.token_urlsafe(24)
-    _previews[pid] = {"expires": time.monotonic() + PREVIEW_TTL, "items": stored}
+    with _previews_lock:
+        _prune()
+        while len(_previews) >= MAX_PREVIEWS:
+            del _previews[next(iter(_previews))]  # oldest first
+        _previews[pid] = {"expires": time.monotonic() + PREVIEW_TTL, "items": stored}
     return {"preview_id": pid, "items": items}
 
 
 def git_preview(db: Session) -> dict:
     repo = _repo(db)
     try:
-        with GitRepo.lock:
+        with git_client.GitRepo.lock:
             repo.fetch()
             source = repo.read_tree()
+            invalid = dict(repo.invalid)
     except GitError as e:
         raise BadGateway(str(e))
-    return preview(db, source)
+    return preview(db, source, invalid)
 
 
 def archive_preview(db: Session, data: bytes) -> dict:
@@ -172,8 +187,9 @@ def archive_preview(db: Session, data: bytes) -> dict:
 
 
 def apply(db: Session, preview_id: str, decisions: dict[str, str]) -> dict:
-    _prune()
-    pv = _previews.get(preview_id)
+    with _previews_lock:
+        _prune()
+        pv = _previews.get(preview_id)
     if pv is None:
         raise NotFound("preview not found or expired; run the preview again")
     items = pv["items"]
@@ -206,5 +222,7 @@ def apply(db: Session, preview_id: str, decisions: dict[str, str]) -> dict:
         challenge_repository.update_by_slug(db, slug, {"sync_hash": it["src_hash"]})
         applied.append(slug)
     db.commit()
-    del _previews[preview_id]
+    with _previews_lock:
+        if _previews.pop(preview_id, None) is None:
+            raise NotFound("preview not found or expired; run the preview again")
     return {"applied": applied}

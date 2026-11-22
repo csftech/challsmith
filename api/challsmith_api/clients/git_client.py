@@ -30,6 +30,7 @@ class GitRepo:
         self.s = settings
         self.home = self.workdir.with_name(self.workdir.name + "-home")
         self.proxy_env = proxy_env
+        self.invalid: dict[str, str] = {}  # slug -> why read_tree skipped it
         for key in ("branch", "dir"):
             if not valid_ref(settings[key]):
                 raise GitError(f"invalid git {key}: {settings[key]!r}")
@@ -88,6 +89,8 @@ class GitRepo:
         with self.lock:
             self._init()
             if not self._run("ls-remote", "--heads", "origin", f"refs/heads/{self.branch}").stdout.strip():
+                # drop the tracking ref of an earlier fetch so read_tree cannot serve stale content
+                self._run("update-ref", "-d", f"refs/remotes/origin/{self.branch}", check=False)
                 return False
             self._run("fetch", "-q", "origin", f"+refs/heads/{self.branch}:refs/remotes/origin/{self.branch}")
             return True
@@ -97,9 +100,21 @@ class GitRepo:
             ref, d = f"refs/remotes/origin/{self.branch}", self.s["dir"]
             if self._run("rev-parse", "--verify", "-q", ref, check=False).returncode != 0:
                 return {}
-            if not self._run("ls-tree", ref, "--", f"{d}/").stdout.strip():
+            self.invalid = {}
+            listing = self._run("ls-tree", "-r", "-z", ref, "--", f"{d}/").stdout
+            slugs = set()
+            for entry in filter(None, listing.split(b"\0")):
+                meta, _, path = entry.decode(errors="replace").partition("	")
+                parts = path.removeprefix(d + "/").split("/", 1)
+                if len(parts) != 2:
+                    continue  # a file directly under dir, not a challenge folder
+                slugs.add(parts[0])
+                if meta.split()[0] not in ("100644", "100755"):
+                    self.invalid[parts[0]] = f"unsupported entry (symlink or submodule): {path}"
+            good = sorted(slugs - set(self.invalid))
+            if not good:
                 return {}
-            tar = self._run("archive", "--format=tar.gz", ref, "--", d).stdout
+            tar = self._run("archive", "--format=tar.gz", ref, "--", *[f"{d}/{x}" for x in good]).stdout
             try:
                 files = archive_format.extract_tar_gz(tar)
             except ValueError as e:

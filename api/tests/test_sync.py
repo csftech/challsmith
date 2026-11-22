@@ -90,6 +90,8 @@ def test_git_settings_mask_token_and_keep_on_null(api):
     assert api.get("/settings/git").json()["token_set"] is True
     assert api.put("/settings/git", json={"remote_url": "ext::sh -c id"}).status_code == 400
     assert api.put("/settings/git", json={"remote_url": "https://x/y.git", "branch": "--x"}).status_code == 400
+    for url in ("https://u@x/y.git", "https://u:p@x/y.git"):
+        assert api.put("/settings/git", json={"remote_url": url}).status_code == 400
 
 
 def test_archive_roundtrip_all_unchanged(api):
@@ -215,3 +217,42 @@ def test_git_export_push_failure_keeps_base(api, db, tmp_path):
     r = api.post("/sync/git/export", json={"push": True})
     assert r.status_code == 200 and r.json()["error"]
     assert sync_hash(db) is None
+
+
+def test_git_export_without_push_keeps_base(api, db, tmp_path):
+    make(api)
+    remote = bare(tmp_path)
+    configure(api, remote)
+    assert api.post("/sync/git/export", json={"push": True}).json()["pushed"] is True
+    base = sync_hash(db)
+    edit(db)
+    r = api.post("/sync/git/export", json={"push": False}).json()
+    assert r["commit"] and r["pushed"] is False
+    assert sync_hash(db) == base
+    assert api.post("/sync/git/preview").json()["items"][0]["status"] == "db_changed"
+
+
+def test_git_preview_symlink_invalidates_only_that_slug(api, db, tmp_path):
+    make(api)
+    make(api, "c2")
+    remote = bare(tmp_path)
+    configure(api, remote)
+    api.post("/sync/git/export", json={"push": True})
+    subprocess.run(["git", "clone", "-q", "-b", "main", str(remote), "cl"], cwd=tmp_path, check=True)
+    cl = tmp_path / "cl"
+    (cl / "challenges/c1/link").symlink_to("/etc/passwd")
+    for cmd in (["add", "-A"], ["-c", "user.name=x", "-c", "user.email=x@x", "commit", "-qm", "l"], ["push", "-q"]):
+        subprocess.run(["git", *cmd], cwd=cl, check=True)
+    items = {i["slug"]: i for i in api.post("/sync/git/preview").json()["items"]}
+    assert items["c1"]["status"] == "invalid" and items["c1"]["error"]
+    assert items["c2"]["status"] == "unchanged"
+
+
+def test_preview_store_is_bounded_and_apply_is_single_use(api, db):
+    make(api)
+    data = archive_format.make_tar_gz({"c1": folder_of(db)})
+    ids = [archive_preview(api, data).json()["preview_id"] for _ in range(sync_service.MAX_PREVIEWS + 2)]
+    assert len(sync_service._previews) == sync_service.MAX_PREVIEWS
+    assert api.post("/sync/apply", json={"preview_id": ids[0], "decisions": {}}).status_code == 404
+    assert api.post("/sync/apply", json={"preview_id": ids[-1], "decisions": {}}).status_code == 200
+    assert api.post("/sync/apply", json={"preview_id": ids[-1], "decisions": {}}).status_code == 404
