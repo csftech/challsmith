@@ -16,7 +16,8 @@
     "sync": "Git sync",
     "cleanup": "Pre-release cleanup",
     "logout": "Sign out",
-    "toggleSidebar": "Toggle sidebar"
+    "toggleSidebar": "Toggle sidebar",
+    "closeSidebar": "Close sidebar"
   },
   "login": {
     "title": "Sign in to challsmith",

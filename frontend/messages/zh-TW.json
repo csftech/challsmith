@@ -16,7 +16,8 @@
     "sync": "Git 同步",
     "cleanup": "發佈前清理",
     "logout": "登出",
-    "toggleSidebar": "展開或收合側欄"
+    "toggleSidebar": "展開或收合側欄",
+    "closeSidebar": "關閉側欄"
   },
   "login": {
     "title": "登入 challsmith",

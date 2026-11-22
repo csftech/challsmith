@@ -22,6 +22,7 @@ const ICON = {
   grip: <><circle cx="9" cy="6" r="1" /><circle cx="15" cy="6" r="1" /><circle cx="9" cy="12" r="1" /><circle cx="15" cy="12" r="1" /><circle cx="9" cy="18" r="1" /><circle cx="15" cy="18" r="1" /></>,
   edit: <path d="M4 20h4L19 9l-4-4L4 16z" />,
   up: <path d="M12 19V5M5 12l7-7 7 7" />,
+  x: <path d="M6 6l12 12M18 6 6 18" />,
   trash: <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />,
 };
 export const Icon = ({ name }: { name: keyof typeof ICON }) => (
@@ -49,7 +50,11 @@ export function Shell({ title, search, children }: { title: string; search?: Rea
 
   return (
     <div className={toggled ? "app toggled" : "app"}>
+      {toggled && <div className="scrim" onClick={() => setToggled(false)} />}
       <aside className="side">
+        <button className="ib close" aria-label={t("closeSidebar")} onClick={() => setToggled(false)}>
+          <Icon name="x" />
+        </button>
         <div className="brand"><span className="logo">cs</span>challsmith</div>
         <nav>
           <div className="grp">{t("groupAuthor")}</div>
