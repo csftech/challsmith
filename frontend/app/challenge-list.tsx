@@ -61,7 +61,7 @@ function Row({ c, locked, now, onDelete }: { c: Summary } & Omit<ViewProps, "gro
       <span role="cell" className="num">{c.value}</span>
       <span role="cell"><Status c={c} /></span>
       <span role="cell" className="muted">{t(`sync.${c.sync}`)}</span>
-      <span role="cell" className="muted"><Updated c={c} now={now} /></span>
+      <span role="cell" className="muted upd"><Updated c={c} now={now} /></span>
       <span role="cell"><Actions c={c} onDelete={onDelete} /></span>
     </div>
   );

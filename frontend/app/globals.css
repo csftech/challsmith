@@ -100,13 +100,19 @@ th {
 .error { color: var(--danger); white-space: pre-wrap; margin: 8px 0; }
 
 /* ---- page layouts kept from before the redesign ---- */
-.editor { display: grid; grid-template-columns: minmax(340px, 440px) 1fr; gap: 16px; align-items: start; }
+/* minmax(0, ...) and min-width: 0 keep a long CodeMirror line scrolling inside the editor, not widening the page */
+.editor { display: grid; grid-template-columns: minmax(340px, 440px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.editor > * { min-width: 0; }
+.editor .cm-theme, .editor .cm-editor { width: 100%; }
+.editor .form > input, .editor .form > select, .editor .form > textarea { width: 100%; }
+.editor .form > .row > div { flex: 1; min-width: 0; }
+.editor .form > .row > div > input, .editor .form > .row > div > select { width: 100%; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .body > .row { margin-bottom: 12px; }
 .tree { max-height: 220px; overflow: auto; margin: 8px 0; font-family: var(--mono); font-size: 13px; }
 .tree div { padding: 2px 6px; cursor: pointer; border-radius: var(--radius-sm); }
 .tree div.sel { background: var(--sel-bg); }
-@media (max-width: 900px) { .editor { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .editor { grid-template-columns: minmax(0, 1fr); } }
 .log { background: var(--log-bg); color: var(--log-fg); font-family: var(--mono); font-size: 13px; padding: 12px; border-radius: var(--radius); height: 60vh; overflow: auto; white-space: pre-wrap; margin-top: 12px; }
 .stack > section { margin-bottom: 20px; }
 
@@ -155,10 +161,10 @@ th {
 
 /* list view: a grid "table" so whole category groups can be dragged */
 .scroll { overflow-x: auto; }
-.ctable { min-width: 860px; }
+.ctable { min-width: 880px; }
 .ctable .thead, .ctable .tr {
   display: grid; align-items: center; gap: 8px; padding: 0 12px;
-  grid-template-columns: 20px 48px minmax(0, 2fr) minmax(0, 1fr) 56px 128px 120px 96px 92px;
+  grid-template-columns: 20px 48px minmax(0, 2fr) minmax(0, 1fr) 56px 128px 120px 116px 92px;
 }
 .ctable .thead {
   height: 34px; background: var(--head-bg); color: var(--head-fg); font-family: var(--head-font); font-size: var(--head-size);
@@ -172,6 +178,7 @@ th {
 /* original case: "Web" and "web" are different categories */
 [data-theme="signal"] .cat-cell, [data-theme="signal"] .cview .cat { font-family: var(--mono); letter-spacing: .5px; font-size: 11.5px; }
 .cat .n { opacity: .55; font-weight: 400; }
+.ctable .upd { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ctable .id { font-family: var(--mono); font-size: 12px; color: var(--muted); }
 .ctable .nm { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
 .ctable .nm a, .ccard .nm {

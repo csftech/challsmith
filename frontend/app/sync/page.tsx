@@ -217,7 +217,7 @@ export default function Sync() {
               <table className="gap">
                 <thead>
                   <tr>
-                    <th>slug</th>
+                    <th>{t("colSlug")}</th>
                     <th>{t("colStatus")}</th>
                     <th>{t("colAction")}</th>
                   </tr>

@@ -302,7 +302,7 @@ export default function Editor() {
         <Link className="btn primary" href={`/c/${slug}/publish`}>{t("publish")}</Link>
       </div>
       <div className="editor">
-        <section className="panel">
+        <section className="panel form">
           <label htmlFor="name">{t("name")}</label>
           <input id="name" value={meta.name} onChange={(e) => setMeta({ name: e.target.value })} />
           <label htmlFor="cat">{t("category")}</label>
