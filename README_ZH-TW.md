@@ -93,6 +93,13 @@ plugin 版本從 `infra/scenarios/go.mod` 讀取（pulumi-docker v5.3.0），自
 | `node-nextjs` | single | Node.js 26 上的 Next.js 16 App Router app，單一 container |
 | `tcp` | single | 以 socat 提供的 TCP 服務，單一 container，分類為 Pwn |
 
+### 需要 PECL extension 的 PHP 題目
+
+PHP 題目如果需要 PECL extension（redis、mongodb、apcu、imagick）或大量內建 extension，或只是想省掉安裝步驟，可以用 `FROM csftech/php-ext:8.3-fpm-alpine`。要鎖定修補版時，改用固定 tag，例如 `csftech/php-ext:8.3.37-fpm-alpine3.24`。image 由 [challsmith-base-images](https://github.com/csftech/challsmith-base-images) 建置，在公司內透過 Docker Hub proxy 拉取。
+
+- php-fpm 不會幫你設定。如果 PHP 要讀 `FLAG`，必須自己加上 `clear_env = no`，做法同 `nginx-php-db` 範本。
+- 8.6 的 image 目前沒有 redis、apcu、imagick，因為它們還無法在 PHP 8.6 上編譯。
+
 ## git 與備份
 
 兩者都在 web app 的同步頁面。

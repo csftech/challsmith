@@ -93,6 +93,13 @@ A challenge is `draft` (never published), `modified` (changed since the last pub
 | `node-nextjs` | single | Next.js 16 App Router app on Node.js 26, one container |
 | `tcp` | single | TCP service served by socat, one container, category Pwn |
 
+### PHP challenges with PECL extensions
+
+A PHP challenge that needs PECL extensions (redis, mongodb, apcu, imagick) or many bundled ones, or that simply wants to skip install steps, can use `FROM csftech/php-ext:8.3-fpm-alpine`. Use a fixed tag such as `csftech/php-ext:8.3.37-fpm-alpine3.24` to pin a patch version. The images are built in [challsmith-base-images](https://github.com/csftech/challsmith-base-images) and pulled through the Docker Hub proxy.
+
+- php-fpm is not configured for you. If PHP reads `FLAG`, add `clear_env = no` yourself, as the `nginx-php-db` template does.
+- The 8.6 image currently has no redis, apcu or imagick, because they do not compile on PHP 8.6 yet.
+
 ## Git and backup
 
 Both are on the Sync page of the web app.
