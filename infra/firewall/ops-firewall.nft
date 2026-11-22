@@ -1,4 +1,6 @@
-# challsmith: keep the trainee account (ops) away from the service containers, chall-manager and the registry.
+# challsmith: default-deny egress for the trainee account (ops), except loopback.
+# Keeps ops away from the service containers, chall-manager, the registry and the web app,
+# and stops software telemetry and update checks (Burp, Firefox). Rule order matters.
 # Loaded by challsmith-ops-firewall.service. Docker never touches this table. Only ops traffic is matched.
 table inet challsmith_ops
 delete table inet challsmith_ops
@@ -6,12 +8,20 @@ delete table inet challsmith_ops
 table inet challsmith_ops {
   chain output {
     type filter hook output priority 0; policy accept;
+    # everything below only matches sockets owned by ops; all other users are untouched
     # container networks: the compose network and every per-instance network the scenarios create
     meta skuid "ops" oifname "docker0" reject
     meta skuid "ops" oifname "br-*" reject
     # the registry has no auth; a push could replace a scenario that chall-manager runs with docker.sock
     meta skuid "ops" ip daddr 127.0.0.0/8 tcp dport 5000 reject with tcp reset
+    meta skuid "ops" ip6 daddr ::1 tcp dport 5000 reject with tcp reset
     # trainees never need the web app; blocking it also stops password guessing against its login page
     meta skuid "ops" ip daddr 127.0.0.0/8 tcp dport 3000 reject with tcp reset
+    meta skuid "ops" ip6 daddr ::1 tcp dport 3000 reject with tcp reset
+    # loopback is open: CTFd on 127.0.0.1:8000, instance ports (Docker's userland proxy), Burp's listener, the DNS stub
+    meta skuid "ops" oifname "lo" accept
+    # default deny, rejected so connections fail fast instead of hanging
+    meta skuid "ops" meta l4proto tcp reject with tcp reset
+    meta skuid "ops" reject with icmpx admin-prohibited
   }
 }

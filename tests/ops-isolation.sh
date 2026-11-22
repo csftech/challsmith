@@ -28,6 +28,18 @@ expect open 127.0.0.1 8000 ctfd
 blocked 127.0.0.1 3000 web
 open_as aps 127.0.0.1 3000 && echo "ok   aps web 127.0.0.1:3000 open" || { echo "FAIL aps web 127.0.0.1:3000 closed"; fail=1; }
 
+# default deny: ops cannot reach the internet (root can, so "closed" means filtered, not offline)
+if open_as root 1.1.1.1 443 || open_as root 8.8.8.8 53; then
+  for t in 1.1.1.1:443 8.8.8.8:53; do expect closed "${t%:*}" "${t#*:}" external; done
+else echo "note: no internet, external check skipped"; fi
+
+# loopback stays open for ops: a listener on a random high port (Burp's proxy and browser use such ports)
+lport=$((20000 + RANDOM % 20000))
+sudo -u ops python3 -m http.server "$lport" --bind 127.0.0.1 >/dev/null 2>&1 & lpid=$!
+sleep 1
+expect open 127.0.0.1 "$lport" loopback-listener
+kill "$lpid" 2>/dev/null
+
 # instance networks: a container on a challenge-* network must not reach any platform service
 iso_clean() { docker rm -f challenge-isocheck-c challenge-isocheck-srv >/dev/null 2>&1; docker network rm challenge-isocheck >/dev/null 2>&1; }
 iso_clean; trap iso_clean EXIT
