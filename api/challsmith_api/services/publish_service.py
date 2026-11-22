@@ -3,14 +3,13 @@ import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
-from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from challsmith_api.clients import ctfd_client, docker_client
 from challsmith_api.clients.ctfd_client import CtfdNotFound
 from challsmith_api.core.config import get_settings
 from challsmith_api.formats import challenge_format, hashing_format
-from challsmith_api.models import Challenge, PublishRun
+from challsmith_api.repositories import challenge_repository, publish_run_repository
 from challsmith_api.services import challenge_service
 from challsmith_api.services.errors import BadRequest, Conflict, NotFound
 
@@ -62,27 +61,25 @@ def ctfd_payload(meta: challenge_format.ChallengeMeta, scenario_ref: str, additi
 
 def start_run(db: Session, slug: str) -> int:
     # the row lock makes "one running run per challenge" race-safe
-    ch = db.scalar(select(Challenge).where(Challenge.slug == slug).with_for_update())
+    ch = challenge_repository.get_by_slug_for_update(db, slug)
     if ch is None:
         raise NotFound("challenge not found")
-    if db.scalar(select(PublishRun.id).where(PublishRun.challenge_id == ch.id, PublishRun.status == "running")):
+    if publish_run_repository.get_running(db, ch) is not None:
         raise Conflict("a publish is already running for this challenge")
-    run = PublishRun(challenge_id=ch.id, status="running", log="")
-    db.add(run)
+    run = publish_run_repository.add_running(db, ch)
     db.commit()
     return run.id
 
 
 def get_run(db: Session, run_id: int) -> dict:
-    run = db.get(PublishRun, run_id)
+    run = publish_run_repository.get(db, run_id)
     if run is None:
         raise NotFound("publish run not found")
     return {"status": run.status, "log": run.log, "created_at": run.created_at, "finished_at": run.finished_at}
 
 
 def fail_interrupted(db: Session) -> None:
-    db.execute(update(PublishRun).where(PublishRun.status == "running").values(
-        status="failed", finished_at=func.now(), log=PublishRun.log + "api restarted, publish interrupted\n"))
+    publish_run_repository.fail_running(db, "api restarted, publish interrupted\n")
     db.commit()
 
 
@@ -105,15 +102,15 @@ def run_publish(
     def log(line: str) -> None:
         # shortcut: one commit per line keeps the poller current, batch if build logs get huge
         with db_factory() as s:
-            s.execute(update(PublishRun).where(PublishRun.id == run_id).values(log=PublishRun.log + line + "\n"))
+            publish_run_repository.append_log(s, run_id, line)
             s.commit()
 
     def finish(status: str | None, ch_values: dict | None = None) -> None:
         with db_factory() as s:
             if ch_values:
-                s.execute(update(Challenge).where(Challenge.slug == slug).values(**ch_values))
+                challenge_repository.update_by_slug(s, slug, ch_values)
             if status:
-                s.execute(update(PublishRun).where(PublishRun.id == run_id).values(status=status, finished_at=func.now()))
+                publish_run_repository.set_status(s, run_id, status)
             s.commit()
 
     try:

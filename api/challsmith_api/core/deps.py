@@ -6,6 +6,7 @@ from challsmith_api.core.config import get_settings
 from challsmith_api.core.db import get_session
 from challsmith_api.core.security import now, token_hash
 from challsmith_api.models import WebSession
+from challsmith_api.repositories import web_session_repository
 
 
 def _unauthorized() -> HTTPException:
@@ -19,11 +20,11 @@ def require_session(
     scheme, _, token = (authorization or "").partition(" ")
     if scheme.lower() != "bearer" or not token:
         raise _unauthorized()
-    row = db.get(WebSession, token_hash(token))
+    row = web_session_repository.get(db, token_hash(token))
     if row is None:
         raise _unauthorized()
     if row.expires_at <= now():
-        db.delete(row)  # lazy cleanup of expired sessions
+        web_session_repository.remove(db, row)  # lazy cleanup of expired sessions
         db.commit()
         raise _unauthorized()
     return row

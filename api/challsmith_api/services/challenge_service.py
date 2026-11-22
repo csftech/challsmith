@@ -1,14 +1,14 @@
 from posixpath import basename
 from typing import BinaryIO
 
-from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from challsmith_api.clients import ctfd_client
 from challsmith_api.clients.ctfd_client import CtfdError, CtfdNotFound
 from challsmith_api.formats import archive_format, challenge_format, hashing_format
-from challsmith_api.models import Challenge, ChallengeFile
+from challsmith_api.models import Challenge
+from challsmith_api.repositories import challenge_repository
 from challsmith_api.services import template_service
 from challsmith_api.services.errors import BadGateway, BadRequest, Conflict, NotFound, TooLarge, Unprocessable
 
@@ -20,12 +20,11 @@ def meta_of(ch: Challenge) -> challenge_format.ChallengeMeta:
 
 
 def _files(db: Session, ch: Challenge) -> dict[str, bytes]:
-    rows = db.execute(select(ChallengeFile.path, ChallengeFile.content).where(ChallengeFile.challenge_id == ch.id))
-    return {p: bytes(c) for p, c in rows}
+    return challenge_repository.files_of(db, ch)
 
 
 def load_challenge(db: Session, slug: str) -> tuple[Challenge, challenge_format.ChallengeMeta, dict[str, bytes]]:
-    ch = db.scalar(select(Challenge).where(Challenge.slug == slug))
+    ch = challenge_repository.get_by_slug(db, slug)
     if ch is None:
         raise NotFound("challenge not found")
     return ch, meta_of(ch), _files(db, ch)
@@ -33,16 +32,11 @@ def load_challenge(db: Session, slug: str) -> tuple[Challenge, challenge_format.
 
 def save_challenge(db: Session, slug: str, meta: challenge_format.ChallengeMeta, files: dict[str, bytes]) -> Challenge:
     """Create or overwrite a challenge (meta and every file) in one transaction."""
-    ch = db.scalar(select(Challenge).where(Challenge.slug == slug))
+    ch = challenge_repository.get_by_slug(db, slug)
     if ch is None:
-        ch = Challenge(slug=slug, meta=meta.model_dump(mode="json"))
-        db.add(ch)
-        db.flush()
+        ch = challenge_repository.add(db, slug, meta.model_dump(mode="json"), files)
     else:
-        ch.meta = meta.model_dump(mode="json")
-        ch.updated_at = func.now()
-        db.execute(delete(ChallengeFile).where(ChallengeFile.challenge_id == ch.id))
-    db.add_all(ChallengeFile(challenge_id=ch.id, path=p, content=c) for p, c in files.items())
+        challenge_repository.replace(db, ch, meta.model_dump(mode="json"), files)
     db.commit()
     return ch
 
@@ -71,16 +65,12 @@ def delete_challenge(db: Session, ch: Challenge, ctfd: ctfd_client.CtfdClient) -
             pass  # already gone on CTFd
         except CtfdError as e:
             raise BadGateway(f"could not delete the CTFd challenge: {e}")
-    db.delete(ch)
+    challenge_repository.delete_challenge(db, ch)
     db.commit()
 
 
 def put_files(db: Session, ch: Challenge, put: dict[str, bytes] | None = None, remove: list[str] | None = None) -> None:
-    for path, content in (put or {}).items():
-        db.merge(ChallengeFile(challenge_id=ch.id, path=path, content=content))
-    if remove:
-        db.execute(delete(ChallengeFile).where(ChallengeFile.challenge_id == ch.id, ChallengeFile.path.in_(remove)))
-    ch.updated_at = func.now()
+    challenge_repository.put_files(db, ch, put or {}, remove)
     db.commit()
 
 
@@ -106,7 +96,7 @@ def bounded(data: bytes, limit: int) -> bytes:
 def list_summaries(db: Session) -> list[dict]:
     # shortcut: hashes every challenge's files per call, cache if the list gets big
     out = []
-    for ch in db.scalars(select(Challenge).order_by(Challenge.slug)):
+    for ch in challenge_repository.list_all(db):
         meta = meta_of(ch)
         out.append(
             {
@@ -122,7 +112,7 @@ def list_summaries(db: Session) -> list[dict]:
 
 
 def create_challenge(db: Session, slug: str, template: str, name: str) -> None:
-    if db.scalar(select(Challenge.id).where(Challenge.slug == slug)) is not None:
+    if challenge_repository.slug_exists(db, slug):
         raise Conflict("slug already exists")
     if template not in {t.name for t in template_service.list_templates()}:
         raise BadRequest("unknown template")
