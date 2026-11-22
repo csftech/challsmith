@@ -84,7 +84,7 @@ def test_build_additional_multi(db):
     ref, add = publish_service.build_additional(meta, images)
     assert ref.endswith("multi:v1")
     svcs = {s["name"]: s for s in json.loads(add["services"])}
-    assert svcs["db"]["image"] == f"{PREFIX}/mirror/mariadb:11.8"
+    assert svcs["db"]["image"] == f"{PREFIX}/mirror/mariadb:11"
     assert svcs["web"]["entry"] is True and svcs["web"]["port"] == 80
     assert add["memory"] == "512m" and all(isinstance(v, str) for v in add.values())
 
@@ -104,7 +104,7 @@ def test_write_context_modes(tmp_path):
 
 def test_mirror_ref():
     m = publish_service.mirror_ref
-    assert m("mariadb:11.8", PREFIX) == f"{PREFIX}/mirror/mariadb:11.8"
+    assert m("mariadb:11", PREFIX) == f"{PREFIX}/mirror/mariadb:11"
     assert m("library/redis:8", PREFIX) == f"{PREFIX}/mirror/library/redis:8"
     assert m("nginx", PREFIX) == f"{PREFIX}/mirror/nginx:latest"
     assert m("localhost:5000/x:1", PREFIX) == "localhost:5000/x:1"
@@ -125,8 +125,8 @@ def test_publish_success(db):
     assert (ch.ctfd_id, ch.published_hash) == (12, before)
     assert "flags" not in ctfd.created[0] and ctfd.created[0]["type"] == "dynamic_iac"
     assert ctfd.tags == [(12, [])]
-    assert [c[0] for c in docker.calls].count("build") == 2 and ("pull", "mariadb:11.8") in docker.calls
-    assert ("push", f"{PREFIX}/mirror/mariadb:11.8") in docker.calls
+    assert [c[0] for c in docker.calls].count("build") == 2 and ("pull", "mariadb:11") in docker.calls
+    assert ("push", f"{PREFIX}/mirror/mariadb:11") in docker.calls
 
 
 def test_publish_build_failure_stops(db):

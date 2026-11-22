@@ -68,7 +68,7 @@ def _path(ref: str, hosts: set[str]) -> str | None:
 
 
 def _mirrored(path: str | None) -> list[str]:
-    """The official image a mirror copy stands for, so keep patterns like mariadb:11.8 match it."""
+    """The official image a mirror copy stands for, so keep patterns like mariadb:11 match it."""
     return [path[len(MIRROR):]] if path and path.startswith(MIRROR) else []
 
 

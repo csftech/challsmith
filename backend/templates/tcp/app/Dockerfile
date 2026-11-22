@@ -1,4 +1,4 @@
-FROM alpine:3.24.4
+FROM alpine:3.24
 RUN apk add --no-cache socat
 COPY entrypoint.sh run.sh /app/
 EXPOSE 9000

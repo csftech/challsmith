@@ -8,7 +8,7 @@ SERVICES = [
      "port": 80, "entry": True},
     {"name": "app", "image": "localhost:5000/challsmith/examples/hello-multi-app:test",
      "env": {"DB_PASSWORD": "example"}},
-    {"name": "db", "image": "mariadb:11.8",
+    {"name": "db", "image": "mariadb:11",
      "env": {"MARIADB_ROOT_PASSWORD": "example", "MARIADB_DATABASE": "app"}},
 ]
 

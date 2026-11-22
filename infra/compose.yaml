@@ -51,7 +51,7 @@ services:
       timeout: 10s
 
   ctfd-db:
-    image: mariadb:11.8
+    image: mariadb:11
     restart: unless-stopped
     environment:
       <<: *no-proxy
@@ -67,7 +67,7 @@ services:
       retries: 20
 
   ctfd-redis:
-    image: redis:8.10-alpine
+    image: redis:8-alpine
     restart: unless-stopped
     environment: *no-proxy
 
