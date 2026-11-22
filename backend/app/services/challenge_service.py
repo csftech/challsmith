@@ -2,7 +2,6 @@ import logging
 from posixpath import basename
 from typing import BinaryIO
 
-import httpx2 as httpx
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -123,7 +122,7 @@ def list_summaries(db: Session, ctfd: ctfd_client.CtfdClient) -> dict:
     if any(c.ctfd_id is not None for c in chs):
         try:
             pos = {i: order_service.CtfdPos(*v) for i, v in ctfd.list_positions().items()}
-        except (CtfdError, httpx.HTTPError):
+        except CtfdError:
             ctfd_ok = False
     if ctfd_ok:
         order = order_service.reconcile(_rows(chs), pos)
@@ -160,7 +159,7 @@ def _push(ctfd: ctfd_client.CtfdClient, targets: list[tuple[str, int, int]]) -> 
     for slug, cid, position in targets:
         try:
             ctfd.set_position(cid, position)
-        except (CtfdError, httpx.HTTPError):
+        except CtfdError:
             failed.append(slug)
     return failed
 
@@ -178,7 +177,7 @@ def save_order(db: Session, ctfd: ctfd_client.CtfdClient, order: list[str]) -> N
     if pub:
         try:
             known = ctfd.list_positions()
-        except (CtfdError, httpx.HTTPError) as e:
+        except CtfdError as e:
             raise BadGateway(f"could not read CTFd: {e}", code="ctfd_unreachable")
         failed = _push(ctfd, [t for t in pub if t[1] in known])  # a challenge missing on CTFd keeps only its DB position
         if failed:

@@ -35,10 +35,13 @@ class CtfdClient:
         self._ready = True
 
     def _api(self, method: str, path: str, timeout: float = 30, **kw) -> dict:
-        if not self._ready:
-            self._login()
-        # CTFd rejects session-authenticated writes whose content type is not JSON, DELETE included
-        r = self._http.request(method, "/api/v1" + path, timeout=timeout, headers={"Content-Type": "application/json"}, **kw)
+        try:
+            if not self._ready:
+                self._login()
+            # CTFd rejects session-authenticated writes whose content type is not JSON, DELETE included
+            r = self._http.request(method, "/api/v1" + path, timeout=timeout, headers={"Content-Type": "application/json"}, **kw)
+        except httpx.HTTPError as e:
+            raise CtfdError(f"{method} {path}: {e}") from e
         if r.status_code == 404:
             raise CtfdNotFound(f"{method} {path} -> 404")
         if not r.is_success:

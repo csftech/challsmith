@@ -165,10 +165,14 @@ def run_publish(
         ctfd.set_tags(ctfd_id, meta.tags)
         log(f"published as CTFd challenge {ctfd_id}")
         finish("succeeded", {"ctfd_id": ctfd_id, "published_hash": snapshot_hash})
-        with db_factory() as s:
-            failed = challenge_service.push_positions(s, ctfd)
-        if failed:
-            logger.warning("could not push CTFd positions of: %s", ", ".join(failed))
+        try:  # the publish already succeeded: a failed position push must not turn it into a failed run
+            with db_factory() as s:
+                failed = challenge_service.push_positions(s, ctfd)
+            if failed:
+                raise RuntimeError("CTFd refused the position of: " + ", ".join(failed))
+        except Exception as e:
+            logger.warning("could not push CTFd positions: %s", e)
+            log(f"warning: could not push CTFd positions: {e}")
     except Exception as e:
         log(f"FAILED: {getattr(e, 'detail', None) or e}")
         finish("failed")

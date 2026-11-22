@@ -100,3 +100,11 @@ def test_list_iac_additional():
 def test_list_iac_additional_fails_closed(listed, details):
     with pytest.raises(ctfd_client.CtfdError):
         iac_client(listed, details).list_iac_additional()
+
+
+def test_transport_error_becomes_ctfd_error():
+    def h(req):
+        raise httpx.ConnectError("refused")
+
+    with pytest.raises(ctfd_client.CtfdError):
+        make(h).list_positions()

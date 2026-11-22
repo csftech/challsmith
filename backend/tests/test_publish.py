@@ -61,7 +61,8 @@ class FakeCtfd:
         self.deleted.append(cid)
 
     def set_position(self, cid, position):
-        pass
+        if getattr(self, "position_fail", False):
+            raise ctfd_client.CtfdError("positions down")
 
 
 def factory():
@@ -241,3 +242,14 @@ def test_publish_sends_current_position(db):
     ctfd = FakeCtfd()
     publish_service.run_publish(factory, run, "b", FakeDocker(), ctfd)
     assert ctfd.created[0]["position"] == 7
+
+
+def test_position_push_failure_keeps_run_succeeded(db):
+    challenge_service.create_challenge(db, "c1", "php", "C")
+    run = publish_service.start_run(db, "c1")
+    ctfd = FakeCtfd()
+    ctfd.position_fail = True
+    publish_service.run_publish(factory, run, "c1", FakeDocker(), ctfd)
+    db.expire_all()
+    r = db.get(PublishRun, run)
+    assert r.status == "succeeded" and "warning: could not push CTFd positions" in r.log
