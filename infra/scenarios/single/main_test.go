@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/csftech/challsmith/scenarios/internal/scenario"
+	"github.com/csftech/challsmith/infra/scenarios/internal/scenario"
 )
 
 const identity = "0123456789abcdef"

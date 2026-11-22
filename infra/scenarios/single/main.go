@@ -9,7 +9,7 @@ import (
 	"github.com/pulumi/pulumi-docker/sdk/v5/go/docker"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/csftech/challsmith/scenarios/internal/scenario"
+	"github.com/csftech/challsmith/infra/scenarios/internal/scenario"
 )
 
 func main() { sdk.Run(deploy) }

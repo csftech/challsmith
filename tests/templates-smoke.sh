@@ -16,7 +16,7 @@ docker network create "$net" >/dev/null
 ok() { echo "PASS $1"; }
 bad() { echo "FAIL $1"; fail=1; }
 build() { # template service -> image name
-  docker build -q --label "cs-smoke=$sfx" -t "cs-smoke-$1-$2:$sfx" "$repo/templates/$1/$2" >/dev/null
+  docker build -q --label "cs-smoke=$sfx" -t "cs-smoke-$1-$2:$sfx" "$repo/backend/templates/$1/$2" >/dev/null
 }
 run() { # name image [extra docker args]
   n=$1; i=$2; shift 2

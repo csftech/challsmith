@@ -83,9 +83,9 @@ else
   useradd -m -s /bin/bash ops
 fi
 
-# 5b. ops firewall: no ops traffic to container networks or the registry (see infra/ops-firewall.nft)
-install -D -m 644 "$SRC/infra/ops-firewall.nft" /etc/challsmith/ops-firewall.nft
-install -m 644 "$SRC/infra/challsmith-ops-firewall.service" /etc/systemd/system/challsmith-ops-firewall.service
+# 5b. ops firewall: no ops traffic to container networks or the registry (see infra/firewall/ops-firewall.nft)
+install -D -m 644 "$SRC/infra/firewall/ops-firewall.nft" /etc/challsmith/ops-firewall.nft
+install -m 644 "$SRC/infra/firewall/challsmith-ops-firewall.service" /etc/systemd/system/challsmith-ops-firewall.service
 systemctl daemon-reload
 systemctl enable challsmith-ops-firewall.service
 systemctl restart challsmith-ops-firewall.service
@@ -93,7 +93,7 @@ systemctl restart challsmith-ops-firewall.service
 # 6. copy repo
 install -d -o aps -g aps -m 750 "$DEST"
 OLD_ENV=/dev/null; [ ! -f "$ENVF" ] || { OLD_ENV="$(mktemp)"; cp "$ENVF" "$OLD_ENV"; }
-rsync -a --chmod=o-rwx --exclude=.git --exclude=.env --exclude=.superpowers --exclude=scenarios/bin "$SRC/" "$DEST/"
+rsync -a --chmod=o-rwx --exclude=.git --exclude=.env --exclude=.superpowers --exclude=infra/scenarios/bin "$SRC/" "$DEST/"
 chown -R aps:aps "$DEST"
 chmod 750 "$DEST"
 chmod 600 "$ENVF"
@@ -120,9 +120,9 @@ fill APP_DB_PASSWORD
 # 8. render ctfd-setup.yaml (reload env so generated secrets and admin values are current)
 set -a; . "$ENVF"; set +a
 envsubst '${CTFD_ADMIN_NAME} ${CTFD_ADMIN_EMAIL} ${CTFD_ADMIN_PASSWORD}' \
-  < "$DEST/infra/ctfd-setup.yaml.tmpl" > "$DEST/infra/ctfd-setup.yaml"
-chown aps:aps "$DEST/infra/ctfd-setup.yaml"
-chmod 600 "$DEST/infra/ctfd-setup.yaml"
+  < "$DEST/infra/ctfd/setup.yaml.tmpl" > "$DEST/infra/ctfd/setup.yaml"
+chown aps:aps "$DEST/infra/ctfd/setup.yaml"
+chmod 600 "$DEST/infra/ctfd/setup.yaml"
 
 # 9. start the stack, wait for the registry, push scenarios
 dc() { sudo -u aps -H docker compose --env-file "$ENVF" -f "$DEST/infra/compose.yaml" "$@"; }
@@ -139,10 +139,10 @@ done
 curl -fsS --noproxy '*' -o /dev/null http://127.0.0.1:5000/v2/ || { echo "Registry did not come up" >&2; exit 1; }
 
 # 9b. GitHub release artifacts (checksum-verified; oras: sha256, pulumi-docker: SHA-1): Pulumi docker plugin and oras.
-# pulumi-docker version comes from scenarios/go.mod; the oras version is defined here only.
+# pulumi-docker version comes from infra/scenarios/go.mod; the oras version is defined here only.
 ORAS_VERSION=1.4.0
-PULUMI_DOCKER_VERSION="$(sed -n 's|.*pulumi-docker/sdk/v5 v||p' "$DEST/scenarios/go.mod" | head -n1)"
-[ -n "$PULUMI_DOCKER_VERSION" ] || { echo "Cannot read pulumi-docker version from scenarios/go.mod" >&2; exit 1; }
+PULUMI_DOCKER_VERSION="$(sed -n 's|.*pulumi-docker/sdk/v5 v||p' "$DEST/infra/scenarios/go.mod" | head -n1)"
+[ -n "$PULUMI_DOCKER_VERSION" ] || { echo "Cannot read pulumi-docker version from infra/scenarios/go.mod" >&2; exit 1; }
 : "${PULUMI_DOCKER_PLUGIN:=}" "${PULUMI_DOCKER_CHECKSUMS:=}" "${ORAS_TARBALL:=}" "${ORAS_CHECKSUMS:=}"
 
 # fetch_verified <source url|path> <asset name> <checksums name> <local checksums file|""> <out file>
@@ -197,7 +197,7 @@ fi
 
 # The proxy goes only to the golang build container (module download), never to a challenge.
 sudo -u aps -H env GOPROXY="${GOPROXY:-}" GOSUMDB="${GOSUMDB:-}" HTTP_PROXY="$HTTP_PROXY" HTTPS_PROXY="$HTTPS_PROXY" NO_PROXY="$NO_PROXY_ALL" ORAS_BIN="$ORAS_BIN" \
-  "$DEST/scripts/push-scenarios.sh" v1
+  "$DEST/infra/scenarios/push.sh" v1
 # chall-manager caches scenarios by reference (on disk and in memory), so a re-pushed :v1 is
 # only picked up after clearing the cache and restarting it. Running instances are unaffected.
 dc exec -T chall-manager rm -rf /root/.cache/chall-manager/oci

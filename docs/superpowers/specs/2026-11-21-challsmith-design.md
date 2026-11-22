@@ -227,7 +227,7 @@ visible: true
 
 ### 8.2 範本
 
-範本是 repo 裡的資料夾，例如 `templates/<name>/`，內含 Dockerfile、entrypoint、範例程式碼與一份描述檔，說明預設的 scenario、port 與 service 組成。第一批範本：
+範本是 repo 裡的資料夾，例如 `backend/templates/<name>/`，內含 Dockerfile、entrypoint、範例程式碼與一份描述檔，說明預設的 scenario、port 與 service 組成。第一批範本：
 
 | 範本 | scenario | 內容 |
 |---|---|---|

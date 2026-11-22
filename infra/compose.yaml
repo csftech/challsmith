@@ -79,7 +79,7 @@ services:
       URL: http://ctfd:8000
       FILE: /ctfd-setup.yaml
     volumes:
-      - ./ctfd-setup.yaml:/ctfd-setup.yaml:ro
+      - ./ctfd/setup.yaml:/ctfd-setup.yaml:ro
     depends_on:
       ctfd:
         condition: service_healthy

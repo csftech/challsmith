@@ -1,4 +1,4 @@
-module github.com/csftech/challsmith/scenarios
+module github.com/csftech/challsmith/infra/scenarios
 
 go 1.27
 

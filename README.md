@@ -63,7 +63,7 @@ The installer downloads two files from GitHub releases and verifies them against
 
 To override the download, set `PULUMI_DOCKER_PLUGIN` or `ORAS_TARBALL` to a different URL or to an absolute local file path. A URL is verified against the checksum file in the same directory. For a local file, set `PULUMI_DOCKER_CHECKSUMS` or `ORAS_CHECKSUMS` to a local checksum file, otherwise verification is skipped with a warning. The checksum file comes from the same host as the download, so this check detects corruption but not a compromised host.
 
-The plugin version is read from `scenarios/go.mod` (pulumi-docker v5.3.0), and a plugin you supply yourself must be that version.
+The plugin version is read from `infra/scenarios/go.mod` (pulumi-docker v5.3.0), and a plugin you supply yourself must be that version.
 
 The php-fpm base images that need PECL extensions are not built here, because the company has no PECL proxy. Build them outside and pull them through the Docker Hub proxy.
 
@@ -110,7 +110,7 @@ Both are on the Sync page of the web app.
 
 ## Cleanup before release
 
-Before exporting the VM for trainees, open the Cleanup page of the web app and type `CLEANUP`, or run `scripts/cleanup.sh` as `aps` (or root), which asks for the same confirmation. It deletes:
+Before exporting the VM for trainees, open the Cleanup page of the web app and type `CLEANUP`, or run `sudo ./cleanup.sh` as `aps` (or root), which asks for the same confirmation. It deletes:
 
 - every chall-manager instance, and leftover `challenge-*` containers and networks;
 - every CTFd user that is not an admin;
@@ -120,7 +120,7 @@ It keeps the challenges, the images in the registry, the git settings and the CT
 
 ## Create a challenge manually
 
-1. Build the challenge image and push it to the local registry, for example `docker build -t localhost:5000/challsmith/my-chall:v1 .` and `docker push localhost:5000/challsmith/my-chall:v1`. Run these as `aps` (or another docker group user). The `examples/` directory has working challenges.
+1. Build the challenge image and push it to the local registry, for example `docker build -t localhost:5000/challsmith/my-chall:v1 .` and `docker push localhost:5000/challsmith/my-chall:v1`. Run these as `aps` (or another docker group user). The `tests/e2e/fixtures/` directory has working challenges.
 2. In CTFd, go to Admin, then Challenges, then create a challenge of type `dynamic_iac`. Fill in name, category, description and points as usual.
 3. Set the scenario to `registry:5000/challsmith/scenarios/single:v1` or `registry:5000/challsmith/scenarios/multi:v1`.
 4. Add the `additional` keys from the tables below. The image in `image` or `services` is the one pushed in step 1, referenced as `localhost:5000/...`.
@@ -167,10 +167,10 @@ Every container gets the environment variable `FLAG`, for example `APS{php_strcm
 Unit tests for the scenarios, run in the same container image the build uses:
 
 ```
-docker run --rm -v "$PWD/scenarios:/src" -w /src golang:1.27-alpine go test ./...
+docker run --rm -v "$PWD/infra/scenarios:/src" -w /src golang:1.27-alpine go test ./...
 ```
 
-End-to-end tests run on the installed VM as `aps`. They build and push the images in `examples/`, create instances through the CTFd API, and drive the web app on port 3000 (create, edit, publish, republish, a failing build, login and Origin checks, backup and import preview). The runner reads `WEB_ADMIN_USER` and `WEB_ADMIN_PASSWORD` from `challsmith.env`. The cleanup test deletes every trainee and web session, so it runs last in its own pytest, and the runner then checks that no `challenge-*` container is left:
+End-to-end tests run on the installed VM as `aps`. They build and push the images in `tests/e2e/fixtures/`, create instances through the CTFd API, and drive the web app on port 3000 (create, edit, publish, republish, a failing build, login and Origin checks, backup and import preview). The runner reads `WEB_ADMIN_USER` and `WEB_ADMIN_PASSWORD` from `challsmith.env`. The cleanup test deletes every trainee and web session, so it runs last in its own pytest, and the runner then checks that no `challenge-*` container is left:
 
 ```
 tests/e2e/run.sh
@@ -212,7 +212,7 @@ The Pulumi logs are in the `cm-pulumi` volume, mounted at `/var/lib/pulumi` in c
 - Every published port binds to 127.0.0.1, so the services and instances are not reachable from the network.
 - The VM itself can reach the container networks, so `ops` is blocked by an nftables table `inet challsmith_ops` (`/etc/challsmith/ops-firewall.nft`, loaded at boot by `challsmith-ops-firewall.service`). It rejects all `ops` traffic into the Docker bridges (`docker0`, `br-*`, including the per-instance networks) and to the registry port 5000 and the web app port 3000 on loopback. `ops` still reaches CTFd on 127.0.0.1:8000 and the instance ports, which go through Docker's root-owned port proxy. Without this, `ops` could call the unauthenticated chall-manager API and read every instance flag, read the CTFd sessions in redis, or push a scenario to the registry that chall-manager would run with `docker.sock`.
 - The firewall fails closed: `challsmith-ops-firewall.service` expires the `ops` account before loading the rules and unlocks it only after they loaded, so `ops` cannot log in if the load fails (`aps` is not affected). Docker keeps the per-instance `challenge-*` networks apart from the compose network; `tests/ops-isolation.sh` verifies it.
-- Before exporting the VM, run the cleanup (see "Cleanup before release"). `scripts/cleanup.sh` runs the cleanup CLI in the `api` container and asks for confirmation.
+- Before exporting the VM, run the cleanup (see "Cleanup before release"). `sudo ./cleanup.sh` runs the cleanup CLI in the `api` container and asks for confirmation.
 - Web app login: one account from `challsmith.env`, checked in constant time. A session is a random token in an `HttpOnly`, `SameSite=Strict` cookie that lasts 12 hours, and only its BLAKE3 hash is stored, so the database cannot be used to log in. The browser talks only to `web`, which calls `api` for it, and `api` checks the session on every endpoint except login, so `web` is not the only guard. Writes need an `Origin` whose host equals the request's `Host`, and that `Host` must be in `WEB_ALLOWED_HOSTS` (a request with any other `Host` is refused), and the `/api/auth/*` routes cannot be reached from the browser.
 - `api` mounts `docker.sock`, so a login to the web app is root-equivalent on the VM. The firewall therefore blocks `ops` from port 3000 as well, and if the firewall fails to load, the `ops` account stays expired.
 - The firewall relies on Docker's userland proxy (the default). With `"userland-proxy": false` in `daemon.json`, loopback traffic to published ports is routed into the bridges and `ops` loses CTFd too, so keep the default.
