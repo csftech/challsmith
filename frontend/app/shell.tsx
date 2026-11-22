@@ -71,7 +71,7 @@ export function Shell({ title, search, children }: { title: string; search?: Rea
             onClick={() => setToggled(!toggled)}>
             <Icon name="side" />
           </button>
-          <h1>{title}</h1>
+          <h1 title={title}>{title}</h1>
           {search}
           <Switchers />
         </header>

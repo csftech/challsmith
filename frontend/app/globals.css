@@ -35,7 +35,7 @@ svg.i { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-widt
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--main-bg); }
 .top { min-height: 52px; display: flex; align-items: center; gap: 10px; padding: 0 20px; background: var(--top-bg); border-bottom: var(--bw) solid var(--top-line); }
 [data-theme="canvas"] .top { padding: 0 4px; }
-.top h1 { flex: 1; font-size: 16px; font-weight: 600; margin: 0; min-width: 0; }
+.top h1 { flex: 1; font-size: 16px; font-weight: 600; margin: 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ib { width: 32px; height: 32px; padding: 0; display: grid; place-items: center; }
 .body { flex: 1; padding: 20px; }
 [data-theme="canvas"] .body { padding: 6px 4px; }
