@@ -20,10 +20,10 @@ import {
   ApiError,
   fileUrl,
   jsonInit,
-  logout,
   type Detail,
   type Meta,
 } from "@/lib/api";
+import { Nav } from "@/app/nav";
 import { decode, encode, type Enc } from "@/lib/text";
 
 type SvcForm = { name: string; port: string; entry: boolean; useImage: boolean; image: string; env: string };
@@ -237,8 +237,8 @@ export default function Editor() {
     <>
       <header className="bar">
         <h1>{meta.name}（{slug}）</h1>
-        <Link className="btn" href="/">回清單</Link>
-        <button onClick={logout}>登出</button>
+        <Link className="btn primary" href={`/c/${slug}/publish`}>發佈</Link>
+        <Nav />
       </header>
       <main className="editor">
         <section className="panel">

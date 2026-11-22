@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { api, logout, type Summary } from "@/lib/api";
+import { Nav } from "./nav";
+import { api, type Summary } from "@/lib/api";
 
-const PUBLISH = { draft: "草稿", published: "已發佈", modified: "已修改未發佈" };
-const SYNC = { never: "未同步", synced: "已同步", modified: "已修改未同步" };
+const PUBLISH = { draft: "草稿", published: "已發佈", modified: "有未發佈的修改" };
+const SYNC = { never: "未同步", synced: "已同步", modified: "有未匯出的修改" };
 
 export default function Home() {
   const [rows, setRows] = useState<Summary[] | null>(null);
@@ -21,7 +22,7 @@ export default function Home() {
       <header className="bar">
         <h1>題目清單</h1>
         <Link className="btn primary" href="/new">新增題目</Link>
-        <button onClick={logout}>登出</button>
+        <Nav />
       </header>
       <main>
         {error && <div className="error">{error}</div>}
