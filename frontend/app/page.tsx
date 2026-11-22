@@ -35,6 +35,7 @@ export default function Home() {
     try {
       const r = await api<ListResponse>("/challenges");
       setItems(r.items);
+      setCat((c) => (c !== null && r.items.some((i) => i.category === c) ? c : null)); // its last challenge may be gone
       setCtfdOk(r.ctfd_ok);
       setNow(new Date());
     } catch (e) {
@@ -83,11 +84,12 @@ export default function Home() {
   }
 
   const all = items ?? [];
-  const filtering = q.trim() !== "" || cat !== null || status !== null;
-  const visible = all.filter((i) => matches(i, q, cat, status));
+  const categories = [...new Set(all.map((i) => i.category))];
+  const catSel = cat !== null && categories.includes(cat) ? cat : null;
+  const filtering = q.trim() !== "" || catSel !== null || status !== null;
+  const visible = all.filter((i) => matches(i, q, catSel, status));
   const groups = groupByCategory(visible);
   const locked = filtering || !ctfdOk || saving;
-  const categories = [...new Set(all.map((i) => i.category))];
   const published = visible.filter((i) => i.publish !== "draft" && !i.ctfd_missing).length;
   const Body = view === "cards" ? ChallengeCards : ChallengeList;
 
@@ -104,7 +106,7 @@ export default function Home() {
     <Shell title={t("list.title")} search={searchBox}>
       <div className="panel clist">
         <div className="bar">
-          <select aria-label={t("list.category")} value={cat === null ? "*" : `=${cat}`}
+          <select aria-label={t("list.category")} value={catSel === null ? "*" : `=${catSel}`}
             onChange={(e) => setCat(e.target.value === "*" ? null : e.target.value.slice(1))}>
             <option value="*">{t("list.allCategories")}</option>
             {categories.map((c) => <option key={c} value={`=${c}`}>{c || t("list.noCategory")}</option>)}
