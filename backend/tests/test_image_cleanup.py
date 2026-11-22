@@ -7,7 +7,7 @@ from app.clients import docker_client, registry_client
 from app.services import image_cleanup_service
 
 HOSTS = {"localhost:5000", "registry:5000"}
-KEEP = {"csftech/php-ext:*": "keep list", "php:8.6.0-cli-alpine3.24": "template base image", "mariadb:11.8": "template base image"}
+KEEP = {"csftech/php-ext:*": "keep list", "php:8.6-cli-alpine": "template base image", "mariadb:11": "template base image"}
 L = "localhost:5000/challsmith/"
 
 
@@ -25,24 +25,24 @@ def kept_reg(p):
 
 def test_local_images_keep_and_remove():
     images = [
-        ("sha256:a", "redis:8.10-alpine", 10),  # in use
+        ("sha256:a", "redis:8-alpine", 10),  # in use
         ("sha256:b", L + "hello-app:1", 20),  # CTFd
-        ("sha256:c", "php:8.6.0-cli-alpine3.24", 30),  # template FROM
+        ("sha256:c", "php:8.6-cli-alpine", 30),  # template FROM
         ("sha256:d", "csftech/php-ext:8.6", 40),  # keep glob
         ("sha256:e", "", 50),  # dangling
         ("sha256:f", "challsmith/api-test:latest", 60),  # unknown
         ("sha256:g", L + "e2e-x-app:old", 70),  # old build, same image also tagged as kept below
         ("sha256:g", L + "hello-app:2", 70),
-        ("sha256:h", L + "mirror/mariadb:11.8", 5),  # mirror of a template image
+        ("sha256:h", L + "mirror/mariadb:11", 5),  # mirror of a template image
     ]
     p = decide(images, used={"sha256:a"}, ctfd={L + "hello-app:1", "registry:5000/challsmith/hello-app:2"})
     assert kept(p) == {
-        "redis:8.10-alpine": "in use by a container",
+        "redis:8-alpine": "in use by a container",
         L + "hello-app:1": "CTFd challenge",
         L + "hello-app:2": "CTFd challenge",  # the other registry host names the same image
-        "php:8.6.0-cli-alpine3.24": "template base image",
+        "php:8.6-cli-alpine": "template base image",
         "csftech/php-ext:8.6": "keep list",
-        L + "mirror/mariadb:11.8": "template base image",
+        L + "mirror/mariadb:11": "template base image",
     }
     assert [i["ref"] for i in p.images] == ["", "challsmith/api-test:latest", L + "e2e-x-app:old"]
     assert p.reclaimable_bytes == 110  # g keeps another tag: untagging frees nothing
@@ -60,7 +60,7 @@ def test_registry_rules():
         ("challsmith/hello-app", "0", "sha256:o"),  # old
         ("challsmith/copy-app", "1", "sha256:k"),  # same digest as a kept tag
         ("challsmith/gone-app", "abc", "sha256:g"),  # challenge deleted from the DB and CTFd
-        ("challsmith/mirror/mariadb", "11.8", "sha256:m"),  # template image
+        ("challsmith/mirror/mariadb", "11", "sha256:m"),  # template image
         ("challsmith/mirror/nginx", "1.30", "sha256:n"),  # mirror nobody uses
         ("other/thing", "1", "sha256:x"),  # not ours
     ]
@@ -71,7 +71,7 @@ def test_registry_rules():
         "challsmith/scenarios/single:v1": "scenario",
         "challsmith/hello-app:1": "CTFd challenge",
         "challsmith/copy-app:1": "same digest as a kept tag",
-        "challsmith/mirror/mariadb:11.8": "template base image",
+        "challsmith/mirror/mariadb:11": "template base image",
         "other/thing:1": "outside challsmith/",
     }
 
@@ -85,13 +85,13 @@ def test_template_images(tmp_path: Path):
     (tmp_path / "t" / "app").mkdir(parents=True)
     (tmp_path / "t" / "app" / "Dockerfile").write_text(
         "ARG V=1\nFROM --platform=linux/amd64 node:26 AS build\nFROM python:${V}\nFROM scratch\nfrom alpine\n")
-    (tmp_path / "t" / "template.yml").write_text("services:\n  - name: db\n    image: mariadb:11.8\n  - name: app\n")
-    assert image_cleanup_service.template_images(tmp_path) == {"node:26", "alpine:latest", "mariadb:11.8"}
+    (tmp_path / "t" / "template.yml").write_text("services:\n  - name: db\n    image: mariadb:11\n  - name: app\n")
+    assert image_cleanup_service.template_images(tmp_path) == {"node:26", "alpine:latest", "mariadb:11"}
 
 
 def test_repo_templates_resolve():
     images = image_cleanup_service.template_images(Path("/app/templates"))
-    assert {"php:8.6.0-cli-alpine3.24", "mariadb:11.8", "alpine:3.24.4"} <= images
+    assert {"php:8.6-cli-alpine", "mariadb:11", "alpine:3.24"} <= images
 
 
 def test_ctfd_images():

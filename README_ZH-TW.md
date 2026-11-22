@@ -16,7 +16,7 @@ Ubuntu 26.04 VM
    │  （出題者）瀏覽器 ──> web app 127.0.0.1:3000 ──> api ──> CTFd、registry、docker
    └─ docker compose 專案 challsmith（restart: unless-stopped）
       ├─ ctfd                  CTFd 3.8.9 + ctfd-chall-manager plugin v0.10.1，127.0.0.1:8000
-      ├─ ctfd-db / ctfd-redis  mariadb 11.8 / redis 8.10-alpine
+      ├─ ctfd-db / ctfd-redis  mariadb 11 / redis 8-alpine
       ├─ ctfd-setup            一次性，建立 CTFd 管理者與 plugin 設定
       ├─ chall-manager         v0.6.7，掛載 /var/run/docker.sock，不對外發布 port
       ├─ chall-manager-janitor 每分鐘回收逾時的 instance
@@ -77,7 +77,7 @@ plugin 版本從 `infra/scenarios/go.mod` 讀取（pulumi-docker v5.3.0），自
 
 1. 建立：填入 slug（小寫字母、數字與 `-`，最長 48 個字元）、名稱並選一個範本，app 會用範本的檔案建立題目。
 2. 編輯：修改題目的設定（分類、標籤、說明、分數、flag、protocol、資源上限、服務）與檔案。檔案放在 `services/<service>/` 底下，沒有設定 `image` 的服務會用它的 `Dockerfile` build。可以直接在瀏覽器編輯檔案，也可以把檔案或 `.zip` 上傳到服務的資料夾。換行符號混用或只有 CR 的檔案，以及不是 UTF-8 的檔案，在編輯器裡是唯讀的，請上傳新檔案來取代。
-3. 發佈：app 會 build 各服務的 image 並推到 `localhost:5000`，然後建立 CTFd 題目，如果之前發佈過，就更新同一個題目。使用官方 image 的服務（例如 `mariadb:11.8`）會複製到 `localhost:5000/challsmith/mirror/<名稱>:<tag>`。
+3. 發佈：app 會 build 各服務的 image 並推到 `localhost:5000`，然後建立 CTFd 題目，如果之前發佈過，就更新同一個題目。使用官方 image 的服務（例如 `mariadb:11`）會複製到 `localhost:5000/challsmith/mirror/<名稱>:<tag>`。
    發佈時 build context 裡的檔案權限是 `0644`、資料夾是 `0755`，所以腳本要用 `sh script` 執行，或在 `Dockerfile` 裡 `chmod +x`。
 4. 查看發佈 log，裡面有 docker 的輸出。build 或 push 失敗時，發佈會停在那一步，不會動到 CTFd，已發佈的版本維持原樣。
 
@@ -133,7 +133,7 @@ PHP 題目如果需要 PECL extension（redis、mongodb、apcu、imagick）或�
 - 任何 container 使用中的 image，不論 container 是否在執行，所以 challsmith 的服務都包含在內。
 - CTFd 題目會執行的 image，從每個 `dynamic_iac` 題目的 `additional` 讀取，單一 container 看 `image`，多 container 看 `services[].image`。
 - registry 裡的 scenario，也就是 `challsmith/scenarios/*`。
-- 範本的基底 image，包括 `backend/templates/**/Dockerfile` 裡每個 `FROM`，以及 `template.yml` 裡只指定 image 的服務（例如 `mariadb:11.8`），本機與 registry 裡的 mirror 副本都算。
+- 範本的基底 image，包括 `backend/templates/**/Dockerfile` 裡每個 `FROM`，以及 `template.yml` 裡只指定 image 的服務（例如 `mariadb:11`），本機與 registry 裡的 mirror 副本都算。
 - `challsmith.env` 的 `CLEANUP_KEEP_IMAGES` 列出的 image。格式是以逗號分隔、比對 `repo:tag` 的萬用字元，預設為 `csftech/php-ext:*,golang:1.27-alpine`，安裝時要用 golang 建置 scenario。
 
 registry tag 是依 manifest digest 刪除的，所以如果有保留的 tag 指向同一個 digest，這個 tag 也會留下。其他的都會移除，例如舊的 build、e2e 的 image、手動 pull 的 image，需要時可以透過 Docker Hub mirror 或下次發佈取回。確認之前，清理頁面會列出要移除與保留的項目，`sudo ./cleanup.sh --dry-run` 會印出同樣的清單，不做任何變更。instance 關閉之後會重新計算一次清單，只有那些 instance 用到的 image 也會一併移除。

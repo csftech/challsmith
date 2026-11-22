@@ -82,7 +82,7 @@ fi
 # instance networks: a container on a challenge-* network must not reach any platform service
 iso_clean() { docker rm -f challenge-isocheck-c challenge-isocheck-srv >/dev/null 2>&1; docker network rm challenge-isocheck >/dev/null 2>&1; }
 iso_clean; trap 'iso_clean; lis_clean' EXIT
-IMG=${ISOCHECK_IMAGE:-alpine:3.24.4}
+IMG=${ISOCHECK_IMAGE:-alpine:3.24}
 iso_ok=1
 docker network create challenge-isocheck >/dev/null   && docker run -d --name challenge-isocheck-srv --network challenge-isocheck "$IMG" sh -c 'while :; do nc -l -p 9999; done' >/dev/null   && docker run -d --name challenge-isocheck-c --network challenge-isocheck "$IMG" sleep infinity >/dev/null   || { echo "FAIL cannot start the challenge-isocheck containers"; fail=1; iso_ok=0; }
 if [ "$iso_ok" = 1 ]; then

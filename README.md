@@ -16,7 +16,7 @@ Ubuntu 26.04 VM
    │  (authors) browser ──> web app 127.0.0.1:3000 ──> api ──> CTFd, registry, docker
    └─ docker compose project "challsmith" (restart: unless-stopped)
       ├─ ctfd                  CTFd 3.8.9 + ctfd-chall-manager plugin v0.10.1, 127.0.0.1:8000
-      ├─ ctfd-db / ctfd-redis  mariadb 11.8 / redis 8.10-alpine
+      ├─ ctfd-db / ctfd-redis  mariadb 11 / redis 8-alpine
       ├─ ctfd-setup            one-shot, creates the CTFd admin and plugin settings
       ├─ chall-manager         v0.6.7, mounts /var/run/docker.sock, no published port
       ├─ chall-manager-janitor removes expired instances every minute
@@ -77,7 +77,7 @@ Open `http://127.0.0.1:3000` in the VM's browser and log in with `WEB_ADMIN_USER
 
 1. Create: choose a slug (lowercase letters, digits and `-`, at most 48 characters), a name and a template. The app creates the challenge with the template's files.
 2. Edit: change the settings (category, tags, description, points, flag, protocol, resource limits, services) and the files. Files live under `services/<service>/`, and a service without an `image` is built from its `Dockerfile`. You can edit a file in the browser, or upload a file or a `.zip` into a service folder. A file with mixed or lone-CR line endings, or one that is not UTF-8, is read-only in the editor; edit it by uploading a replacement.
-3. Publish: the app builds the service images, pushes them to `localhost:5000` and creates the CTFd challenge, or updates the same one if it was published before. A service that uses an official image (for example `mariadb:11.8`) is copied to `localhost:5000/challsmith/mirror/<name>:<tag>`.
+3. Publish: the app builds the service images, pushes them to `localhost:5000` and creates the CTFd challenge, or updates the same one if it was published before. A service that uses an official image (for example `mariadb:11`) is copied to `localhost:5000/challsmith/mirror/<name>:<tag>`.
    Publishing writes the build-context files as `0644` and directories as `0755`, so run scripts with `sh script` or `chmod +x` them in the `Dockerfile`.
 4. Read the publish log, which shows the docker output. If a build or push fails, publishing stops there, CTFd is not touched and the published version stays as it was.
 
@@ -133,7 +133,7 @@ These images and registry tags are always kept:
 - images used by any container, running or stopped (all challsmith services);
 - images that a CTFd challenge runs, read from each `dynamic_iac` challenge's `additional` (single `image`, multi `services[].image`);
 - the scenarios, `challsmith/scenarios/*` in the registry;
-- the template base images (every `FROM` in `backend/templates/**/Dockerfile` and every image-only service in a `template.yml`, such as `mariadb:11.8`, local and as registry mirror copies);
+- the template base images (every `FROM` in `backend/templates/**/Dockerfile` and every image-only service in a `template.yml`, such as `mariadb:11`, local and as registry mirror copies);
 - what `CLEANUP_KEEP_IMAGES` in `challsmith.env` lists: comma-separated globs on `repo:tag`, default `csftech/php-ext:*,golang:1.27-alpine` (golang builds the scenarios at install).
 
 A registry tag is deleted by its manifest digest, so a tag whose digest a kept tag also points to stays. Everything else goes: old builds, e2e images, images pulled by hand. They come back through the Docker Hub mirror or the next publish. The Cleanup page lists what will be removed and what is kept before you confirm; `sudo ./cleanup.sh --dry-run` prints the same list and changes nothing. The list is computed again after the instances are gone, so the run can remove the images that only those instances used.

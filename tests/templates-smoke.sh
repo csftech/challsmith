@@ -48,14 +48,14 @@ done
 # tcp
 n=cs-smoke-tcp-$sfx
 if build tcp app && run "$n" "cs-smoke-tcp-app:$sfx" -e FLAG='APS{smoke}'; then
-  tcp_out() { [ -n "$(docker run --rm --network "$net" --label "cs-smoke=$sfx" alpine:3.24.4 sh -c "nc -w 3 $n 9000 </dev/null")" ]; }
+  tcp_out() { [ -n "$(docker run --rm --network "$net" --label "cs-smoke=$sfx" alpine:3.24 sh -c "nc -w 3 $n 9000 </dev/null")" ]; }
   wait_for 30 tcp_out && ok "tcp output" || bad "tcp output"
 else bad "tcp build/run"; fi
 noflag tcp app
 
 # nginx-php-db
 if build nginx-php-db web && build nginx-php-db php; then
-  run cs-smoke-nx-db-$sfx mariadb:11.8 --network-alias db -e MARIADB_ROOT_PASSWORD=change-me -e MARIADB_DATABASE=app
+  run cs-smoke-nx-db-$sfx mariadb:11 --network-alias db -e MARIADB_ROOT_PASSWORD=change-me -e MARIADB_DATABASE=app
   run cs-smoke-nx-php-$sfx "cs-smoke-nginx-php-db-php:$sfx" --network-alias php -e FLAG='APS{smoke}' -e DB_PASSWORD=change-me
   run cs-smoke-nx-web-$sfx "cs-smoke-nginx-php-db-web:$sfx" --network-alias web -e FLAG='APS{smoke}'
   wait_for 60 probe "http://web/" && ok "nginx-php-db responds 200" || { bad "nginx-php-db responds 200"; docker logs cs-smoke-nx-web-$sfx 2>&1 | tail -5; }

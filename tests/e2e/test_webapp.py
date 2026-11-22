@@ -38,8 +38,9 @@ def test_multi_template_publish(web, admin, new_challenge, register_user):
     assert published(web, admin, slug)["id"] == cid
     user = register_user("carol")
     assert submit(user, cid, flag_of(start_instance(user, cid))) == "correct"
-    catalog = requests.get("http://127.0.0.1:5000/v2/_catalog", timeout=30).json()["repositories"]
-    assert "challsmith/mirror/mariadb" in catalog
+    # ask the repo directly: the catalog is paged and keeps emptied repos, so it can grow past one page
+    tags = requests.get("http://127.0.0.1:5000/v2/challsmith/mirror/mariadb/tags/list", timeout=30).json()["tags"]
+    assert "11" in tags
 
 
 def test_republish_updates_same_challenge(web, admin, new_challenge):

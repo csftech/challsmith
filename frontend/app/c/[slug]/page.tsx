@@ -350,7 +350,7 @@ export default function Editor() {
                 <button className="danger" onClick={() => setForm({ ...form, svcs: svcs.filter((_, j) => j !== i) })}>刪除</button>
               </div>
               {s.useImage && (
-                <input placeholder="image（例如 mariadb:11.8）" style={{ width: "100%", marginTop: 6 }} value={s.image}
+                <input placeholder="image（例如 mariadb:11）" style={{ width: "100%", marginTop: 6 }} value={s.image}
                   onChange={(e) => setSvc(i, { image: e.target.value })} />
               )}
               <label>環境變數（每行 KEY=VALUE）</label>
