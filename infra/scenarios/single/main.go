@@ -35,7 +35,7 @@ func deploy(req *sdk.Request, resp *sdk.Response, opts ...pulumi.ResourceOption)
 		Envs:    pulumi.ToStringArray(scenario.ContainerEnv(nil, flag)),
 		Memory:  pulumi.Int(cfg.MemoryMB),
 		Cpus:    pulumi.String(strconv.FormatFloat(cfg.CPUs, 'f', -1, 64)),
-		Restart: pulumi.String("unless-stopped"),
+		Restart: pulumi.String("no"),
 		Rm:      pulumi.Bool(false),
 		Ports: docker.ContainerPortArray{&docker.ContainerPortArgs{
 			Internal: pulumi.Int(cfg.Port),

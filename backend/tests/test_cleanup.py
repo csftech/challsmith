@@ -64,6 +64,37 @@ def test_run_cleanup(db):
     assert db.scalar(select(func.count()).select_from(Challenge)) == 1
 
 
+def test_reset_instances_only_touches_instances(db):
+    cm, docker = FakeCm(), FakeDocker()
+    assert cleanup_service.reset_instances(cm, docker, lambda _: None) == (3, 2, 1)
+    assert len(cm.deleted) == 3
+    assert docker.calls == [("containers", "challenge-"), ("networks", "challenge-")]
+
+
+def test_cli_instances_only_never_touches_ctfd_or_sessions(monkeypatch, capsys):
+    from app.cli import cleanup as cli
+
+    cm, docker = FakeCm(), FakeDocker()
+
+    class Boom:
+        def __init__(self, *a):
+            raise AssertionError("ctfd must not be used")
+
+    class S:
+        chall_manager_url = ctfd_url = "http://x"
+        ctfd_admin_name = ctfd_admin_password = "x"
+        upstream_http_proxy = upstream_https_proxy = upstream_no_proxy = ""
+
+    cm.close = lambda: None
+    monkeypatch.setattr(cli, "get_settings", lambda: S)
+    monkeypatch.setattr(cli.chall_manager_client, "ChallManager", lambda url: cm)
+    monkeypatch.setattr(cli.ctfd_client, "CtfdClient", Boom)
+    monkeypatch.setattr(cli.docker_client, "DockerOps", lambda *a: docker)
+    monkeypatch.setattr(cli, "get_engine", lambda: (_ for _ in ()).throw(AssertionError("no db")))
+    assert cli.main(["--instances-only", "--yes"]) == 0
+    assert len(cm.deleted) == 3 and docker.calls == [("containers", "challenge-"), ("networks", "challenge-")]
+
+
 def test_run_cleanup_never_deletes_when_user_lookup_fails(db):
     class Broken(FakeCtfd):
         def get_user(self, uid):

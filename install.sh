@@ -89,6 +89,10 @@ install -m 644 "$SRC/infra/firewall/challsmith-ops-firewall.service" /etc/system
 systemctl daemon-reload
 systemctl enable challsmith-ops-firewall.service
 systemctl restart challsmith-ops-firewall.service
+# 5c. boot reset: delete stale instances after a reboot (enabled, not started now; failures never block other units)
+install -m 644 "$SRC/infra/boot/challsmith-boot-reset.service" /etc/systemd/system/challsmith-boot-reset.service
+systemctl daemon-reload
+systemctl enable challsmith-boot-reset.service
 
 # 6. copy repo
 install -d -o aps -g aps -m 750 "$DEST"

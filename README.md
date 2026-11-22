@@ -186,7 +186,7 @@ sudo tests/ops-isolation.sh
 
 ## Known limitations
 
-1. After a VM reboot the instance containers come back, but Docker may assign a new host port (observed 32776 to 32768). CTFd still shows the old connection URL, so the trainee must delete the instance and open a new one.
+1. Instances do not survive a VM reboot, on purpose. Docker may give a restarted container a new host port, which would leave CTFd showing a dead connection URL. So instance containers are created with restart policy `no`, and at boot `challsmith-boot-reset.service` (installed and enabled by `install.sh`, script `infra/boot/reset-instances.sh`) waits up to five minutes for the api and chall-manager, then runs `cleanup.sh --instances-only --yes`: every chall-manager instance and leftover `challenge-*` container and network is deleted, while CTFd users and web sessions are kept. A trainee opens a new instance after the reboot, and its flag changes. A failure of the unit is logged in the journal (`journalctl -u challsmith-boot-reset`) and does not stop other services.
 2. php single-container challenges use `php -S`, which is single-threaded. That is fine for one trainee per VM.
 3. Anyone with the vmdk can get root. Dynamic flags only stop trainees from copying each other's flags. The writeup and the oral check are the real control.
 4. An import preview is kept in the api's memory for 30 minutes, so after the api restarts you must run the preview again.

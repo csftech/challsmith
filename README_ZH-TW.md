@@ -186,7 +186,7 @@ sudo tests/ops-isolation.sh
 
 ## 已知限制
 
-1. VM 重開機後，instance 的 container 會自動回來，但 Docker 可能分配新的對外 port（實測從 32776 變成 32768）。CTFd 仍顯示舊的連線網址，所以新人必須刪除 instance 再重新開一個。
+1. instance 不會在 VM 重開機後保留，這是刻意的設計。Docker 可能替重新啟動的 container 分配新的對外 port，CTFd 就會顯示失效的連線網址。因此 instance 的 container 以重啟策略 `no` 建立，開機時由 `challsmith-boot-reset.service`（`install.sh` 會安裝並啟用，腳本是 `infra/boot/reset-instances.sh`）最多等五分鐘，等 api 與 chall-manager 就緒後執行 `cleanup.sh --instances-only --yes`，刪除所有 chall-manager instance 與殘留的 `challenge-*` container 和 network，CTFd 使用者與 web 登入狀態則保留。新人重開機後重新開一個 instance 即可，flag 也會跟著改變。這個 unit 失敗時會記錄在 journal（`journalctl -u challsmith-boot-reset`），不會影響其他服務。
 2. php 單一 container 的題目使用 `php -S`，它是單執行緒，一台 VM 只有一位新人使用時沒有問題。
 3. 拿到 vmdk 的人都能取得 root，動態 flag 只能防止新人互相抄 flag，真正的管控方式是 writeup 與口頭確認。
 4. 匯入預覽存在 api 的記憶體中，保留 30 分鐘，所以 api 重新啟動後，必須重新預覽。
