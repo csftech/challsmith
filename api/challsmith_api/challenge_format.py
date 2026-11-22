@@ -20,7 +20,7 @@ class ServiceSpec(BaseModel):
     @field_validator("name")
     @classmethod
     def _name(cls, v: str) -> str:
-        if not SERVICE_RE.match(v):
+        if not SERVICE_RE.fullmatch(v):
             raise ValueError(f"service name {v!r} must match {SERVICE_RE.pattern}")
         return v
 
@@ -34,7 +34,7 @@ class InstanceSpec(BaseModel):
     @field_validator("memory")
     @classmethod
     def _memory(cls, v: str) -> str:
-        if not MEMORY_RE.match(v):
+        if not MEMORY_RE.fullmatch(v):
             raise ValueError(f"memory {v!r} must match {MEMORY_RE.pattern}")
         return v
 
@@ -59,7 +59,7 @@ class ChallengeMeta(BaseModel):
     @field_validator("slug")
     @classmethod
     def _slug(cls, v: str) -> str:
-        if not SLUG_RE.match(v):
+        if not SLUG_RE.fullmatch(v):
             raise ValueError(f"slug {v!r} must match {SLUG_RE.pattern}")
         return v
 

@@ -1,8 +1,10 @@
 import gzip
 import io
+import posixpath
 import stat
 import tarfile
 import zipfile
+import zlib
 
 from .challenge_format import safe_relpath
 
@@ -22,37 +24,41 @@ def _read_capped(f, total: int) -> tuple[bytes, int]:
     return b"".join(parts), total
 
 
-def _name(raw: str) -> str:
+_ZIP_ERRORS = (zipfile.BadZipFile, zlib.error, NotImplementedError, RuntimeError, OSError, EOFError)
+
+
+def _name(raw: str, is_dir: bool) -> str | None:
+    """Safe relative name, or None for the root directory member ("." or "./")."""
+    if is_dir and posixpath.normpath(raw) == ".":
+        return None
     return safe_relpath(raw.rstrip("/"))
 
 
 def extract_zip(data: bytes) -> dict[str, bytes]:
     try:
-        zf = zipfile.ZipFile(io.BytesIO(data))
-    except zipfile.BadZipFile as e:
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            infos = zf.infolist()
+            if len(infos) > MAX_MEMBERS:
+                raise ValueError("too many archive members")
+            if sum(i.file_size for i in infos) > MAX_TOTAL:
+                raise ValueError("archive too large when extracted")
+            plan = []
+            for i in infos:
+                name = _name(i.filename, i.is_dir())
+                if stat.S_IFMT(i.external_attr >> 16) not in (0, stat.S_IFREG, stat.S_IFDIR):
+                    raise ValueError(f"unsupported member type: {i.filename!r}")
+                if name is not None and not i.is_dir():
+                    plan.append((name, i))
+            out: dict[str, bytes] = {}
+            total = 0
+            for name, i in plan:
+                if name in out:
+                    raise ValueError(f"duplicate member: {name!r}")
+                with zf.open(i) as f:
+                    out[name], total = _read_capped(f, total)
+            return out
+    except _ZIP_ERRORS as e:
         raise ValueError(f"invalid zip: {e}") from e
-    with zf:
-        infos = zf.infolist()
-        if len(infos) > MAX_MEMBERS:
-            raise ValueError("too many archive members")
-        if sum(i.file_size for i in infos) > MAX_TOTAL:
-            raise ValueError("archive too large when extracted")
-        plan = []
-        for i in infos:
-            name = _name(i.filename)
-            if stat.S_ISLNK(i.external_attr >> 16):
-                raise ValueError(f"symlink not allowed: {i.filename!r}")
-            plan.append((name, i))
-        out: dict[str, bytes] = {}
-        total = 0
-        for name, i in plan:
-            if i.is_dir():
-                continue
-            if name in out:
-                raise ValueError(f"duplicate member: {name!r}")
-            with zf.open(i) as f:
-                out[name], total = _read_capped(f, total)
-        return out
 
 
 def extract_tar_gz(data: bytes) -> dict[str, bytes]:
@@ -63,21 +69,22 @@ def extract_tar_gz(data: bytes) -> dict[str, bytes]:
     with tf:
         try:
             plan = []
-            size = 0
+            size = count = 0
             for m in tf:
-                if len(plan) >= MAX_MEMBERS:
+                count += 1
+                if count > MAX_MEMBERS:
                     raise ValueError("too many archive members")
                 if not (m.isfile() or m.isdir()):
                     raise ValueError(f"unsupported member type: {m.name!r}")
-                plan.append((_name(m.name), m))
+                name = _name(m.name, m.isdir())
+                if name is not None and m.isfile():
+                    plan.append((name, m))
                 size += m.size
                 if size > MAX_TOTAL:
                     raise ValueError("archive too large when extracted")
             out: dict[str, bytes] = {}
             total = 0
             for name, m in plan:
-                if m.isdir():
-                    continue
                 if name in out:
                     raise ValueError(f"duplicate member: {name!r}")
                 out[name], total = _read_capped(tf.extractfile(m), total)

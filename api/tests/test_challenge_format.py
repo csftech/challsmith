@@ -44,6 +44,8 @@ def _svc(**kw):
     {"scenario": "multi", "services": [_svc(entry=True, port=None)]},
     {"services": [_svc(entry=True), _svc(name="b")]},
     {"instance": {"memory": "256"}},
+    {"slug": "abc\n"},
+    {"instance": {"memory": "256m\n"}},
 ])
 def test_validation_errors(patch):
     meta = parse_challenge_yml(SPEC).model_dump(mode="json") | patch
