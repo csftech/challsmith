@@ -203,19 +203,37 @@ sudo -u aps -H env GOPROXY="${GOPROXY:-}" GOSUMDB="${GOSUMDB:-}" HTTP_PROXY="$HT
 dc exec -T chall-manager rm -rf /root/.cache/chall-manager/oci
 dc restart chall-manager >/dev/null
 
-# 10. Burp Suite Community
-BURP=/opt/BurpSuiteCommunity
-if [ ! -e "$BURP" ]; then
-  url="${BURP_DOWNLOAD_URL:-https://portswigger.net/burp/releases/download?product=community&type=Linux}"
-  curl -fsSL -o "$tmp/burp.sh" "$url"
-  chmod +x "$tmp/burp.sh"
-  "$tmp/burp.sh" -q -dir "$BURP"
+# 10. Burp Suite (merged Professional/Community installer; runs as Community without a licence)
+# verify_sha256 <file> <expected sha256 | "">: empty expected = warn and skip; mismatch aborts.
+verify_sha256() {
+  local f=$1 want=$2 got
+  if [ -z "$want" ]; then echo "WARNING: no BURP_SHA256 for a custom BURP_DOWNLOAD_URL, skipping checksum verification." >&2; return 0; fi
+  got="$(sha256sum "$f" | cut -d' ' -f1)"
+  [ "$want" = "$got" ] || { echo "Checksum mismatch for Burp Suite (expected '$want', got $got), aborting." >&2; exit 1; }
+}
+BURP=/opt/BurpSuite
+BURP_DEFAULT_VERSION=2026.11.2
+BURP_VERSION="${BURP_VERSION:-$BURP_DEFAULT_VERSION}"
+if [ -z "${BURP_DOWNLOAD_URL:-}" ] && [ "$BURP_VERSION" = "$BURP_DEFAULT_VERSION" ]; then
+  : "${BURP_SHA256:=9f04ae260f559b7b75fdb0e12c7c82a046767212e35dbbb601e89c25cf4b6d3f}"
 fi
-cat > /usr/share/applications/burpsuite-community.desktop <<DESK
+if [ "$(cat "$BURP/.challsmith-version" 2>/dev/null)" = "$BURP_VERSION" ]; then
+  echo "Burp Suite $BURP_VERSION already installed, skipping."
+else
+  curl -fsSL --retry 3 -o "$tmp/burp.sh" "${BURP_DOWNLOAD_URL:-https://portswigger.net/burp/releases/download?product=desktop&version=$BURP_VERSION&type=Linux}"
+  verify_sha256 "$tmp/burp.sh" "${BURP_SHA256:-}"
+  chmod +x "$tmp/burp.sh"
+  rm -rf "$BURP"
+  "$tmp/burp.sh" -q -dir "$BURP"
+  echo "$BURP_VERSION" > "$BURP/.challsmith-version"
+  echo "Burp Suite $BURP_VERSION installed."
+fi
+rm -f /usr/share/applications/burpsuite-community.desktop
+cat > /usr/share/applications/burpsuite.desktop <<DESK
 [Desktop Entry]
 Type=Application
-Name=Burp Suite Community
-Exec=$BURP/BurpSuiteCommunity
+Name=Burp Suite
+Exec=$BURP/BurpSuite
 Terminal=false
 Categories=Development;Security;
 DESK

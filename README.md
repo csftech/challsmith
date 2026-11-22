@@ -11,7 +11,7 @@ Authors build challenges in a web app on `http://127.0.0.1:3000`: pick a templat
 ```
 Ubuntu 26.04 VM
 ├─ ops (trainee) ── browser ──> CTFd 127.0.0.1:8000 ──> challenge instance 127.0.0.1:<random port>
-│                          └──> Burp Suite Community
+│                          └──> Burp Suite
 └─ aps (docker group)
    │  (authors) browser ──> web app 127.0.0.1:3000 ──> api ──> CTFd, registry, docker
    └─ docker compose project "challsmith" (restart: unless-stopped)
@@ -38,7 +38,7 @@ The two scenarios are written in Go (Go 1.27, pulumi-docker v5.3.0) and are buil
 You need an Ubuntu 26.04 Desktop VM with internet access, directly or through the company proxies.
 
 1. Copy the repository to the VM, then `cp challsmith.env.example challsmith.env` and edit it. The CTFd admin name, email and password are required, and so is `WEB_ADMIN_PASSWORD`, the password of the web app (`WEB_ADMIN_USER` is its user name, default `admin`). `CTFD_SECRET_KEY`, `CTFD_DB_PASSWORD` and `APP_DB_PASSWORD` (the web app's PostgreSQL) are generated when left empty. The web app signs in to CTFd with the CTFd admin account. `CM_MANA_TOTAL` is the per-user mana limit (default 5).
-2. Run `sudo ./install.sh`. It is safe to re-run. It installs Docker, writes the Docker daemon proxy settings, creates the users `aps` (docker group) and `ops` (an existing `ops` is removed from the docker, sudo, adm and lxd groups), installs the `ops` firewall, copies the repository to `/opt/challsmith`, starts the compose project, builds and pushes the scenarios, and installs Burp Suite Community.
+2. Run `sudo ./install.sh`. It is safe to re-run. It installs Docker, writes the Docker daemon proxy settings, creates the users `aps` (docker group) and `ops` (an existing `ops` is removed from the docker, sudo, adm and lxd groups), installs the `ops` firewall, copies the repository to `/opt/challsmith`, starts the compose project, builds and pushes the scenarios, and installs Burp Suite (PortSwigger's merged installer, pinned by `BURP_VERSION` and verified by SHA-256). Without a licence it runs as Community; that is PortSwigger's behaviour, so the maintainer should confirm it on the desktop. Installs from before this lived in `/opt/BurpSuiteCommunity`, which the installer leaves alone and you can delete.
 3. Set the passwords: `sudo passwd aps` and `sudo passwd ops`.
 4. Open `http://127.0.0.1:8000` and log in to CTFd with the admin account from `challsmith.env`. The web app is at `http://127.0.0.1:3000`, with `WEB_ADMIN_USER` and `WEB_ADMIN_PASSWORD`.
 
