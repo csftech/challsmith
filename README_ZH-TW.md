@@ -38,7 +38,7 @@ Ubuntu 26.04 VM
 需要一台 Ubuntu 26.04 Desktop VM，能直接或經由公司 proxy 連上網路。
 
 1. 把 repo 複製到 VM，執行 `cp challsmith.env.example challsmith.env` 後編輯。CTFd 管理者的名稱、email 與密碼必填，web app 的密碼 `WEB_ADMIN_PASSWORD` 也必填（`WEB_ADMIN_USER` 是它的帳號，預設為 `admin`）。`CTFD_SECRET_KEY`、`CTFD_DB_PASSWORD` 與 `APP_DB_PASSWORD`（web app 的 PostgreSQL）留空時會自動產生。web app 以 CTFd 的管理者帳號登入 CTFd。`CM_MANA_TOTAL` 是每位使用者的 mana 上限，預設為 0，代表不限制（見下方說明）。
-2. 執行 `sudo ./install.sh`，可以重複執行。它會安裝 Docker、寫入 Docker daemon 的 proxy 設定、建立使用者 `aps`（docker 群組）與 `ops`（已存在的 `ops` 會被移出 docker、sudo、adm 與 lxd 群組）、安裝 `ops` 的防火牆、把 repo 複製到 `/opt/challsmith`、啟動 compose 專案、build 並推送 scenario，最後安裝 Burp Suite（PortSwigger 的合併版安裝程式，版本由 `BURP_VERSION` 固定，並以 SHA-256 驗證）。第一次開啟時，Burp 會讓使用者選擇 Professional 或 Community，新人選 Community 即可，不需要授權。舊版安裝在 `/opt/BurpSuiteCommunity`，安裝程式不會動它，可以自行刪除。
+2. 執行 `sudo ./install.sh`，可以重複執行。它會安裝 Docker、寫入 Docker daemon 的 proxy 設定、建立使用者 `aps`（docker 群組）與 `ops`（已存在的 `ops` 會被移出 docker、sudo、adm 與 lxd 群組）、安裝 `ops` 的防火牆、把 repo 複製到 `/opt/challsmith`（`frontend/` 與 `backend/` 會完全同步，repo 刪掉的檔案在那裡也會刪掉）、啟動 compose 專案、build 並推送 scenario，最後安裝 Burp Suite（PortSwigger 的合併版安裝程式，版本由 `BURP_VERSION` 固定，並以 SHA-256 驗證）。第一次開啟時，Burp 會讓使用者選擇 Professional 或 Community，新人選 Community 即可，不需要授權。舊版安裝在 `/opt/BurpSuiteCommunity`，安裝程式不會動它，可以自行刪除。
 3. 設定密碼：`sudo passwd aps` 與 `sudo passwd ops`。
 4. 開啟 `http://127.0.0.1:8000`，用 `challsmith.env` 裡的管理者帳號登入 CTFd。web app 在 `http://127.0.0.1:3000`，帳密是 `WEB_ADMIN_USER` 與 `WEB_ADMIN_PASSWORD`。
 
