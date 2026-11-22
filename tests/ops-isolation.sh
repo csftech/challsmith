@@ -55,7 +55,7 @@ if [ -n "$hip" ]; then
     else
       python3 -m http.server "$p" --bind "$hip" --directory "$hdir" >/dev/null 2>&1 & hpids="$hpids $!"
       sleep 1
-      if open_as root "$hip" "$p"; then expect closed "$hip" "$p" "host-address (defense in depth)"
+      if open_as root "$hip" "$p"; then expect closed "$hip" "$p" "host-address (root listener open)"
       else echo "FAIL root cannot reach its own listener on $hip:$p, cannot test"; fail=1; fi
     fi
   done
