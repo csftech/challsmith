@@ -168,7 +168,8 @@ th {
 .ctable .cat { border-top: 1px solid var(--row-line); background: var(--cat-bg); color: var(--cat-fg); }
 [data-theme="signal"] .ctable .cat { border-top: var(--bw) solid var(--line); }
 .cat-cell, .cview .cat { display: flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; font-size: 12.5px; font-weight: 600; }
-[data-theme="signal"] .cat-cell, [data-theme="signal"] .cview .cat { font-family: var(--mono); text-transform: uppercase; letter-spacing: .5px; font-size: 11.5px; }
+/* original case: "Web" and "web" are different categories */
+[data-theme="signal"] .cat-cell, [data-theme="signal"] .cview .cat { font-family: var(--mono); letter-spacing: .5px; font-size: 11.5px; }
 .cat .n { opacity: .55; font-weight: 400; }
 .ctable .id { font-family: var(--mono); font-size: 12px; color: var(--muted); }
 .ctable .nm { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
