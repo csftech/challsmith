@@ -53,12 +53,6 @@ def test_in_use_beats_everything():
     assert p.images == [] and p.reclaimable_bytes == 0
 
 
-def test_container_image_name_keeps_rebuilt_tag():
-    # the ctfd container still runs the old id; the compose tag now names a newer build
-    p = decide([("sha256:new", "challsmith/ctfd:3.8.9", 5)], used={"sha256:old", "challsmith/ctfd:3.8.9"})
-    assert p.images == [] and kept(p) == {"challsmith/ctfd:3.8.9": "in use by a container"}
-
-
 def test_registry_rules():
     tags = [
         ("challsmith/scenarios/single", "v1", "sha256:s"),
@@ -223,17 +217,17 @@ def test_registry_client_delete_disabled_raises():
 # docker_client parsing
 
 
-def test_docker_list_images_and_container_images(monkeypatch):
+def test_docker_list_images_and_container_image_ids(monkeypatch):
     out = {
         "images": ["sha256:a\tredis\t8", "sha256:b\t<none>\t<none>", "sha256:a\tlocalhost:5000/x\t1"],
         "image": ["sha256:a\t100", "sha256:b\t7"],
         "ps": ["c1", "c2"],
-        "inspect": ["sha256:a\tredis:8", "sha256:c\tregistry:3"],
+        "inspect": ["sha256:a", "sha256:a"],
     }
     d = docker_client.DockerOps()
     monkeypatch.setattr(d, "_run", lambda cmd, log, shown=None, quiet=False: out[cmd[1]])
     assert d.list_images(print) == [("sha256:a", "redis:8", 100), ("sha256:b", "", 7), ("sha256:a", "localhost:5000/x:1", 100)]
-    assert d.container_images(print) == {"sha256:a", "redis:8", "sha256:c", "registry:3"}
+    assert d.container_image_ids(print) == {"sha256:a"}
 
 
 def test_docker_remove_image_never_forces(monkeypatch):

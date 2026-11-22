@@ -56,7 +56,7 @@ class FakeDocker:
     def list_images(self, log):
         return [("sha256:a", "localhost:5000/challsmith/live-app:1", 5), ("sha256:b", "localhost:5000/challsmith/old-app:1", 7)]
 
-    def container_images(self, log):
+    def container_image_ids(self, log):
         return set()
 
     def remove_image(self, ref, log):

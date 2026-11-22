@@ -72,13 +72,13 @@ def _mirrored(path: str | None) -> list[str]:
 
 def decide(
     images: list[tuple[str, str, int]],
-    used: set[str],
+    used_ids: set[str],
     ctfd_refs: set[str],
     keep: dict[str, str],
     registry_tags: list[tuple[str, str, str]],
     hosts: set[str],
 ) -> CleanupPlan:
-    """images: (id, repo:tag or "", size); used: image ids and names of containers; keep: glob pattern -> reason;
+    """images: (id, repo:tag or "", size); used_ids: container image ids; keep: glob pattern -> reason;
     registry_tags: (repo, tag, digest). reclaimable_bytes adds whole image sizes, so shared layers count once
     per image: an upper bound."""
     ctfd_paths = {p for r in ctfd_refs if (p := _path(r, hosts))}
@@ -97,7 +97,7 @@ def decide(
     kept_img, kept_reg = defaultdict(list), defaultdict(list)
     for img_id, ref, size in images:
         path = ref and _path(ref, hosts)
-        why = "in use by a container" if img_id in used or ref in used else (ref and reason([ref, *_mirrored(path)], path))
+        why = "in use by a container" if img_id in used_ids else (ref and reason([ref, *_mirrored(path)], path))
         if why:
             kept_img[why].append(ref or img_id)
         else:
@@ -143,7 +143,7 @@ def plan(docker, registry, ctfd, log) -> CleanupPlan:
         keep.setdefault(image, "template base image")
     return decide(
         docker.list_images(log),
-        docker.container_images(log),
+        docker.container_image_ids(log),
         ctfd_images(ctfd.list_iac_additional()),
         keep,
         registry_tags(registry),

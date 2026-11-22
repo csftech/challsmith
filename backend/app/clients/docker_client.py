@@ -74,14 +74,12 @@ class DockerOps:
                     sizes[i] = int(size)
         return [(i, "" if "<none>" in (repo, tag) else f"{repo}:{tag}", sizes.get(i, 0)) for i, repo, tag in rows]
 
-    def container_images(self, log: Log) -> set[str]:
-        """Image ids and image names of every container, running or stopped. The name counts too: a compose
-        service whose tag was rebuilt still runs the old id, and its current tag must not go."""
+    def container_image_ids(self, log: Log) -> set[str]:
+        """Image ids of every container, running or stopped."""
         ids = self._run(["docker", "ps", "-a", "-q", "--no-trunc"], log, quiet=True)
         if not ids:
             return set()
-        out = self._run(["docker", "inspect", "--format", "{{.Image}}\t{{.Config.Image}}", *ids], log, quiet=True)
-        return {v for line in out for v in line.split("\t") if v}
+        return {line for line in self._run(["docker", "inspect", "--format", "{{.Image}}", *ids], log, quiet=True) if line}
 
     def remove_image(self, ref: str, log: Log) -> None:
         # never -f: an image a container still uses must make this fail
