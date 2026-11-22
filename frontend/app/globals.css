@@ -202,3 +202,14 @@ th {
 .dialog p { margin: 0 0 4px; color: var(--muted); }
 .dialog input { width: 100%; font-family: var(--mono); }
 .dialog .actions { justify-content: flex-end; margin-top: 14px; }
+
+/* ---- editor, sync and cleanup ---- */
+.ok { color: var(--ok-fg); margin: 8px 0; }
+.w60 { width: 60px; } .w70 { width: 70px; } .w80 { width: 80px; } .w90 { width: 90px; }
+input.full { width: 100%; margin-top: 6px; }
+.hint { margin: 4px 0; }
+.filebar { margin: 8px 0; }
+.gap { margin-top: 10px; }
+.choice { margin-right: 12px; }
+.panel h2, .card h2 { font-size: 15px; margin: 4px 0 8px; }
+.stack .panel { max-width: 760px; }
