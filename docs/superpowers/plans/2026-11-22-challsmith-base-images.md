@@ -16,10 +16,10 @@
 
 - 新 repo 放在本機 `D:/projects/challsmith-base-images`，GitHub 上是 `csftech/challsmith-base-images`，公開 repo。不可出現 VM 的 IP、帳密、任何 `.env` 內容或 Docker Hub token。
 - image 名稱：`csftech/php-pecl`。每個版本推兩個 tag：
-  - 固定的 `<php 版本>-fpm-<alpine 版本>`，例如 `8.3.30-fpm-alpine3.22`
+  - 固定的 `<php 版本>-fpm-<alpine 版本>`，例如 `8.3.37-fpm-alpine3.24`
   - 會移動的別名 `<別名>-fpm-alpine`，例如 `8.3-fpm-alpine`
 - base image 一律用官方 `php:<php 版本>-fpm-<alpine 版本>`。
-- php 版本：7.4、8.1、8.3、8.6，每個都固定到確切的修補版與 alpine 版本，用官方 image 目前提供的最新組合。7.4 已經停止更新，用它最後一個 alpine tag。
+- php 版本：7.4、8.1、8.3、8.6，每個都固定到確切的修補版與 alpine 版本，用官方 image 目前提供的最新組合。2026-11-22 查到的是 `8.6.0-fpm-alpine3.24`、`8.3.37-fpm-alpine3.24`、`8.1.34-fpm-alpine3.22`、`7.4.33-fpm-alpine3.16`。8.1 與 7.4 已經停止支援，官方 image 不再出新的 alpine 版本，就用它們最後一個 tag，不自己編譯 php。開工時重新查一次，有更新的組合就用更新的。
 - extension：redis、mongodb、apcu、imagick。每個 php 版本各自固定 extension 的版本，選 PECL 上支援該 php 版本的最新穩定版。開工時查證並記在 report。
 - 版本原則：有 LTS 的用最新 LTS，沒有的用最新穩定版，`.0` 也可以；全部固定確切版本。GitHub Actions 的 action 一律用 commit SHA 固定，後面註解版本號。
 - 只產生 `linux/amd64`。
@@ -71,8 +71,8 @@ challsmith-base-images/
     namespace: csftech
     image: php-pecl
     images:
-      - php: "8.3.30"          # 官方 base tag 的 php 版本部分
-        alpine: "alpine3.22"   # 官方 base tag 的 alpine 部分
+      - php: "8.3.37"          # 官方 base tag 的 php 版本部分
+        alpine: "alpine3.24"   # 官方 base tag 的 alpine 部分
         alias: "8.3"           # 產生 <alias>-fpm-alpine 的移動 tag
         extensions:            # PECL 套件名稱: 固定版本
           redis: "6.3.0"
@@ -95,20 +95,20 @@ challsmith-base-images/
     - `namespace`、`image` 必須符合 Docker 名稱規則 `^[a-z0-9]+(?:[._-][a-z0-9]+)*$`。
     - `images` 不能是空的。
     - `php` 必須符合 `^\d+\.\d+\.\d+$`，`alpine` 必須符合 `^alpine\d+\.\d+$`。
-    - `alias` 必須是 `php` 的「主版本.次版本」，例如 `8.3.30` 只能用 `8.3`。
+    - `alias` 必須是 `php` 的「主版本.次版本」，例如 `8.3.37` 只能用 `8.3`。
     - `php` 不能重複，`alias` 也不能重複。
     - `extensions` 至少要有一個。名稱只能是 `^[a-z0-9_]+$`，版本只能是 `^\d+\.\d+\.\d+$`。
   - `tests/run-unit.sh`：在 VM 上以 `python:3.15-alpine` container 安裝固定版本的 PyYAML 與 pytest，再執行 `pytest tests/test_matrix.py`。
 
 - [ ] **Step 1：寫失敗的測試** `tests/test_matrix.py`：
-  - `test_matrix_for_one_image`：給一筆 `php: "8.3.30"`、`alpine: "alpine3.22"`、`alias: "8.3"`、`extensions: {redis: "6.3.0", apcu: "5.1.27"}`，`namespace: csftech`、`image: php-pecl`。結果完全等於：
+  - `test_matrix_for_one_image`：給一筆 `php: "8.3.37"`、`alpine: "alpine3.24"`、`alias: "8.3"`、`extensions: {redis: "6.3.0", apcu: "5.1.27"}`，`namespace: csftech`、`image: php-pecl`。結果完全等於：
 
     ```python
     {"include": [{
-        "php": "8.3.30",
-        "alpine": "alpine3.22",
-        "base": "php:8.3.30-fpm-alpine3.22",
-        "tags": "csftech/php-pecl:8.3.30-fpm-alpine3.22,csftech/php-pecl:8.3-fpm-alpine",
+        "php": "8.3.37",
+        "alpine": "alpine3.24",
+        "base": "php:8.3.37-fpm-alpine3.24",
+        "tags": "csftech/php-pecl:8.3.37-fpm-alpine3.24,csftech/php-pecl:8.3-fpm-alpine",
         "extensions": "redis-6.3.0 apcu-5.1.27",
         "expect": "redis=6.3.0 apcu=5.1.27",
     }]}
@@ -117,9 +117,9 @@ challsmith-base-images/
   - `test_validate_rejects`：參數化，以下每一種都 raise `ValueError`：
     - 重複的 `php`
     - 重複的 `alias`
-    - `alias` 填 `8.2`，但 `php` 是 `8.3.30`
+    - `alias` 填 `8.2`，但 `php` 是 `8.3.37`
     - `php` 填 `8.3`
-    - `alpine` 填 `3.22`
+    - `alpine` 填 `3.24`
     - extension 版本填 `latest`
     - extension 名稱填 `Redis`
     - `extensions` 是空的
@@ -140,7 +140,7 @@ challsmith-base-images/
 **Interfaces:**
 - Consumes：`scripts/matrix.py` 的 `matrix` 輸出（Task 1）。
 - Produces：
-  - `php/Dockerfile` 的 build args：`BASE`（例如 `php:8.3.30-fpm-alpine3.22`）與 `PECL_EXTENSIONS`（例如 `redis-6.3.0 mongodb-2.1.4 apcu-5.1.27 imagick-3.8.1`）。做法：
+  - `php/Dockerfile` 的 build args：`BASE`（例如 `php:8.3.37-fpm-alpine3.24`）與 `PECL_EXTENSIONS`（例如 `redis-6.3.0 mongodb-2.1.4 apcu-5.1.27 imagick-3.8.1`）。做法：
     - `FROM ${BASE}`。
     - 用 `apk add --virtual .build-deps` 安裝 `$PHPIZE_DEPS` 與各 extension 需要的 `-dev` 套件，然後 `pecl install ${PECL_EXTENSIONS}`，再對每個 extension 執行 `docker-php-ext-enable`。
     - 用 `scanelf` 找出 `.so` 實際需要的執行期函式庫，以 `apk add --virtual .run-deps` 保留下來，再 `apk del .build-deps`，並清掉 pecl 的暫存檔。
