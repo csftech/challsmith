@@ -40,15 +40,29 @@ for t in 1.1.1.1:443 8.8.8.8:53; do
 done
 [ "$ext" = 1 ] || echo "note: no internet, external check skipped"
 
-# defense in depth: the host's own non-loopback address must not reach the web app or the registry either
-# (those ports bind 127.0.0.1, so root may be refused too; only ops is asserted)
+# defense in depth: the host's own non-loopback address must not reach the web app or the registry either.
+# Those ports bind 127.0.0.1, so nothing listens on $hip; where the port is free there, start a temporary root
+# listener so the check can fail: root must connect (positive control), ops must not.
 hip=$(ip -4 -o addr show scope global | awk '{sub("/.*","",$4); print $4; exit}')
-if [ -n "$hip" ]; then for p in 3000 5000; do expect closed "$hip" "$p" "host-address (defense in depth)"; done
+hdir=$(mktemp -d); chmod 755 "$hdir"; hpids=
+lis_clean() { [ -z "${lport:-}" ] || pkill -u ops -f "http.server $lport" 2>/dev/null; [ -z "$hpids" ] || kill $hpids 2>/dev/null; rm -rf "${ldir:-}" "$hdir"; }
+trap lis_clean EXIT
+if [ -n "$hip" ]; then
+  for p in 3000 5000; do
+    # taken = a listener on $hip or on a wildcard address
+    if ss -ltnH "sport = :$p" | awk -v h="$hip" '$4 ~ "^(" h "|0[.]0[.]0[.]0|[*]|[[]::[]]):" {f=1} END{exit !f}'; then
+      expect closed "$hip" "$p" "host-address (defense in depth)"
+    else
+      python3 -m http.server "$p" --bind "$hip" --directory "$hdir" >/dev/null 2>&1 & hpids="$hpids $!"
+      sleep 1
+      if open_as root "$hip" "$p"; then expect closed "$hip" "$p" "host-address (defense in depth)"
+      else echo "FAIL root cannot reach its own listener on $hip:$p, cannot test"; fail=1; fi
+    fi
+  done
 else echo "note: no global IPv4 address, host-address check skipped"; fi
 
 # loopback stays open for ops: a listener on a free port below Docker's ephemeral range (Burp's proxy and browser use such ports)
 ldir=$(mktemp -d)
-lis_clean() { pkill -u ops -f "http.server $lport" 2>/dev/null; rm -rf "$ldir"; }
 lport=
 for _ in $(seq 20); do
   c=$((20000 + RANDOM % 12000))
