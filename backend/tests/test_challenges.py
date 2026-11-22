@@ -4,6 +4,8 @@ import zipfile
 import pytest
 from sqlalchemy import select
 
+from app.api import deps
+from app.main import app
 from app.services import challenge_service
 from app.models import Challenge
 from test_auth import admin_env, bearer, login  # noqa: F401  (fixture reused)
@@ -152,8 +154,19 @@ def test_status_published_then_modified(api, db):
 
 
 def test_delete_challenge(api, db):
+    from test_image_cleanup import FakeDocker, FakeRegistry
+
+    local = "localhost:5000/challsmith/"
+    docker = FakeDocker([("a", local + "c1-app:1", 1), ("b", local + "c1-app-x:1", 1)])
+    registry = FakeRegistry([("challsmith/c1-app", "1", "d1"), ("challsmith/c1-app-x", "1", "d2")])
+    app.dependency_overrides[deps.get_docker_ops] = lambda: docker
+    app.dependency_overrides[deps.get_registry_client] = lambda: registry
     make(api)
-    assert api.delete("/challenges/c1").status_code == 200
+    try:
+        assert api.delete("/challenges/c1").status_code == 200
+    finally:
+        app.dependency_overrides.clear()
+    assert docker.calls == [("rm", local + "c1-app:1")] and registry.deleted == [("challsmith/c1-app", "d1")]
     assert api.get("/challenges/c1").status_code == 404
     assert db.scalars(select(Challenge)).all() == []
     assert api.delete("/challenges/c1").status_code == 404

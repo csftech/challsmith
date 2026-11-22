@@ -80,3 +80,17 @@ class CtfdClient:
 
     def set_config(self, key: str, value) -> None:
         self._api("PATCH", "/configs", json={key: value})
+
+    def list_iac_additional(self) -> list[dict]:
+        """`additional` of every dynamic_iac challenge, hidden ones included (only the admin detail view has it)."""
+        out = []
+        for c in self._api("GET", "/challenges", params={"view": "admin"})["data"]:
+            if "type" not in c:  # cannot tell whether it runs images: fail rather than miss them
+                raise CtfdError(f"CTFd challenge {c.get('id')} has no type")
+            if c["type"] != "dynamic_iac":
+                continue
+            detail = self._api("GET", f"/challenges/{c['id']}", params={"view": "admin"})["data"]
+            if not isinstance(detail.get("additional"), dict):
+                raise CtfdError(f"CTFd challenge {c['id']} has no additional")
+            out.append(detail["additional"])
+        return out

@@ -126,8 +126,21 @@ PHP 題目如果需要 PECL extension（redis、mongodb、apcu、imagick）或�
 - 所有 chall-manager 的 instance，以及殘留的 `challenge-*` container 與網路。
 - 所有不是管理者的 CTFd 使用者。
 - 所有 web app 的 session，所以你也會被登出。
+- 沒有任何東西需要的 Docker image 與本機 registry tag，接著清掉 build cache 與沒在用的匿名 volume，具名 volume 會保留。之後會對 registry 做 garbage collection，空間才會真的釋放，執行期間 registry 會短暫停止。
 
-題目、registry 裡的 image、git 設定與 CTFd 管理者帳號都會保留。
+下列 image 與 registry tag 一律保留：
+
+- 任何 container 使用中的 image，不論 container 是否在執行，所以 challsmith 的服務都包含在內。
+- CTFd 題目會執行的 image，從每個 `dynamic_iac` 題目的 `additional` 讀取，單一 container 看 `image`，多 container 看 `services[].image`。
+- registry 裡的 scenario，也就是 `challsmith/scenarios/*`。
+- 範本的基底 image，包括 `backend/templates/**/Dockerfile` 裡每個 `FROM`，以及 `template.yml` 裡只指定 image 的服務（例如 `mariadb:11.8`），本機與 registry 裡的 mirror 副本都算。
+- `challsmith.env` 的 `CLEANUP_KEEP_IMAGES` 列出的 image。格式是以逗號分隔、比對 `repo:tag` 的萬用字元，預設為 `csftech/php-ext:*,golang:1.27-alpine`，安裝時要用 golang 建置 scenario。
+
+registry tag 是依 manifest digest 刪除的，所以如果有保留的 tag 指向同一個 digest，這個 tag 也會留下。其他的都會移除，例如舊的 build、e2e 的 image、手動 pull 的 image，需要時可以透過 Docker Hub mirror 或下次發佈取回。確認之前，清理頁面會列出要移除與保留的項目，`sudo ./cleanup.sh --dry-run` 會印出同樣的清單，不做任何變更。instance 關閉之後會重新計算一次清單，只有那些 instance 用到的 image 也會一併移除。
+
+在 web app 刪除題目時，也會一併移除它 build 出來的 image，本機與 registry 都會刪。這時不做 garbage collection，空間要等下次清理才會釋放。
+
+題目、git 設定與 CTFd 管理者帳號都會保留。
 
 ## 手動建立題目
 

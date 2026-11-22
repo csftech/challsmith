@@ -11,7 +11,7 @@ from app.core.config import get_settings
 from app.utils import hash_util
 from app.schemas import challenge_schema
 from app.repositories import challenge_repository, publish_run_repository
-from app.services import challenge_service
+from app.services import challenge_service, cleanup_service
 from app.services.errors import BadRequest, Conflict, NotFound
 
 
@@ -61,7 +61,11 @@ def ctfd_payload(meta: challenge_schema.ChallengeMeta, scenario_ref: str, additi
 
 
 def start_run(db: Session, slug: str) -> int:
-    # the row lock makes "one running run per challenge" race-safe
+    # the gate lock orders this against a cleanup start; the row lock makes "one running run per challenge" race-safe
+    cleanup_service.lock_gate(db)
+    if cleanup_service.cleanup_running(db):
+        db.rollback()
+        raise Conflict("the pre-release cleanup is running; publish again when it has finished")
     ch = challenge_repository.get_by_slug_for_update(db, slug)
     if ch is None:
         raise NotFound("challenge not found")
