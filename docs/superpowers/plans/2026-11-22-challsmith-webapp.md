@@ -6,7 +6,7 @@
 
 **Architecture：** 三個新的 compose 服務：`web`（Next.js，BFF，唯一對外，`127.0.0.1:3000`）、`api`（FastAPI，只在內部網路，掛 docker.sock，用 docker CLI build 與 push）、`app-db`（PostgreSQL）。瀏覽器只跟 `web` 溝通，`web` 把 session token 放在 httpOnly cookie，轉送給 `api` 驗證，session 存在 PostgreSQL。題目以資料庫為正本，git 與 `.tar.gz` 都使用 spec 第 7 節的資料夾格式，以三方 hash 判斷誰改過。
 
-**Tech Stack：** Node.js 26 LTS、Next.js 16 LTS（App Router，TypeScript）、PostgreSQL 18、Python 3.15（FastAPI、SQLAlchemy 2、Alembic、psycopg 3、httpx、PyYAML、pytest）、CodeMirror 6（`@uiw/react-codemirror`）、alpine 的 `docker-cli`、`docker-cli-buildx` 與 `git` 套件。
+**Tech Stack：** Node.js 26 LTS、Next.js 16 LTS（App Router，TypeScript）、PostgreSQL 19、Python 3.15（FastAPI、SQLAlchemy 2、Alembic、psycopg 3、httpx、PyYAML、pytest）、CodeMirror 6（`@uiw/react-codemirror`）、alpine 的 `docker-cli`、`docker-cli-buildx` 與 `git` 套件。
 
 **Spec：** `docs/superpowers/specs/2026-11-21-challsmith-design.md`（第 2、5、7、8、9 節）。第 1 部分完成後的實際狀態以 `README.md`、`infra/compose.yaml` 與 `install.sh` 為準，spec 第 3 節的版本號已經過時。
 
@@ -16,10 +16,10 @@
 
 - 開發與測試在使用者的 Ubuntu 26.04 開發 VM 上透過 SSH 進行：`ssh -i ~/.ssh/challsmith_vm -o BatchMode=yes <user>@<dev-vm>`，連線資訊在本機 `.env`。不讀取、不印出 `.env` 的內容。Windows 端用 `tar --exclude=./.env --exclude=./.git --exclude=./.superpowers --exclude=./web/node_modules --exclude=./web/.next -cf - . | ssh ... 'mkdir -p ~/challsmith && tar -xf - -C ~/challsmith'` 同步。VM 已裝第 1 部分（`/opt/challsmith`），以 `sudo ./install.sh` 重裝即可套用變更。
 - 公開 repo 不可出現 VM 的 IP、帳密或任何 `.env` 內容。
-- 版本：盡可能使用彼此相容的最新 LTS 版本。有 LTS 的元件用最新的 LTS 版本；沒有 LTS 的元件，用最新的穩定版，但不選剛發布的 `.0` 大版本；其他套件用與上述版本相容的最新穩定版。所有版本都要固定確切版本號：compose 寫明 tag，`requirements.txt` 與 `package-lock.json` 鎖版。image 有 alpine 版就用 alpine 版。開工時查證並記在 ledger。以 2026-11-22 查到的狀態，預期如下：
+- 版本：盡可能使用彼此相容的最新 LTS 版本。有 LTS 的元件用最新的 LTS 版本；沒有 LTS 的元件，用最新的穩定版，剛發布的 `.0` 大版本也可以；其他套件用與上述版本相容的最新穩定版。所有版本都要固定確切版本號：compose 寫明 tag，`requirements.txt` 與 `package-lock.json` 鎖版。image 有 alpine 版就用 alpine 版。開工時查證並記在 ledger。以 2026-11-22 查到的狀態，預期如下：
   - Node.js：`node:26-alpine`，26 是目前的 Active LTS，最新為 26.13.1。
   - Next.js：16.x，16 是目前的 LTS 版本線，最新為 16.4.6。React 沒有 LTS，使用 Next.js 16 支援的最新 19.x。
-  - PostgreSQL：沒有 LTS，每個大版本都支援 5 年。19 目前只有 19.0，所以用 `postgres:18-alpine`，最新為 18.7。
+  - PostgreSQL：沒有 LTS，每個大版本都支援 5 年，用 `postgres:19-alpine`，最新為 19.0。
   - Python：沒有 LTS，用 `python:3.15-alpine`，支援到 2028-10，第 1 部分的 e2e 已在使用。如果有必要的套件缺少 3.15 的 musl wheel，退回 3.14，並記一筆 ruling。
   - alpine：沒有 LTS，用最新的穩定版。
   - 第 1 部分已使用的 MariaDB 11.8 本身就是 LTS，維持不變。
