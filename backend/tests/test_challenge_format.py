@@ -29,7 +29,7 @@ def test_yaml_roundtrip():
     out = challenge_schema.dump_challenge_yml(meta)
     assert challenge_schema.parse_challenge_yml(out) == meta
     assert challenge_schema.dump_challenge_yml(meta) == out
-    assert b"flag_prefix: CTF" in out and b"memory: 256m" in out
+    assert b"flag_prefix: APS" in out and b"memory: 256m" in out
 
 
 def _svc(**kw):

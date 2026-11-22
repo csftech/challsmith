@@ -11,9 +11,9 @@ def test_two_users_get_distinct_working_flags(admin, register_user, create_chall
     cid = create_challenge("hello-php", SCENARIO, HELLO_PHP)
     alice, bob = register_user("alice"), register_user("bob")
     url_a, url_b = start_instance(alice, cid), start_instance(bob, cid)
-    flag_a = get_until(url_a + "/?give=1", "CTF{").strip()
-    flag_b = get_until(url_b + "/?give=1", "CTF{").strip()
-    assert flag_a.startswith("CTF{") and flag_b.startswith("CTF{")
+    flag_a = get_until(url_a + "/?give=1", "APS{").strip()
+    flag_b = get_until(url_b + "/?give=1", "APS{").strip()
+    assert flag_a.startswith("APS{") and flag_b.startswith("APS{")
     assert flag_a != flag_b
     assert submit(bob, cid, flag_a) == "incorrect"
     assert submit(alice, cid, flag_a) == "correct"

@@ -128,7 +128,7 @@ plugin 版本從 `scenarios/go.mod` 讀取（pulumi-docker v5.3.0），自行提
 
 ### 題目 image 怎麼讀 flag
 
-每個 container 都會拿到環境變數 `FLAG`，例如 `CTF{php_strcmp_array_...}`。image 裡不能包含 flag，由 entrypoint 或程式在啟動時讀取 `FLAG`，例如寫成 `/flag.txt` 或寫進資料庫。multi 題目的每個服務都會拿到 `FLAG`，服務的 `env` 裡若也設了 `FLAG` 會被覆蓋。每個 instance 的 flag 都不同，同一位新人刪掉 instance 再重開，也會拿到新的 flag。
+每個 container 都會拿到環境變數 `FLAG`，例如 `APS{php_strcmp_array_3f9a1c07e2b84d65}`，格式是 flag 範本、底線，再接上 instance 的 identity（chall-manager 產生的 64 位元亂數）。不論 flag 範本多短，不同 instance 拿到相同 flag 的機率都極低，instance 存在期間 flag 也不會變，管理者還能從提交的 flag 看出它屬於哪個 instance。image 裡不能包含 flag，由 entrypoint 或程式在啟動時讀取 `FLAG`，例如寫成 `/flag.txt` 或寫進資料庫。multi 題目的每個服務都會拿到 `FLAG`，服務的 `env` 裡若也設了 `FLAG` 會被覆蓋。每個 instance 的 flag 都不同，同一位新人刪掉 instance 再重開，也會拿到新的 flag。
 
 ### single 的鍵
 
@@ -138,7 +138,7 @@ plugin 版本從 `scenarios/go.mod` 讀取（pulumi-docker v5.3.0），自行提
 | `flag` | flag 範本的內文，例如 `php_strcmp_array` | 必填 |
 | `port` | container 內部的服務 port（1-65535） | `80` |
 | `protocol` | `http` 產生 `http://localhost:<port>`，`tcp` 產生 `nc localhost <port>` | `http` |
-| `flag_prefix` | flag 外層的格式，結果為 `CTF{...}` | `CTF` |
+| `flag_prefix` | flag 外層的格式，結果為 `APS{...}` | `APS` |
 | `memory` | 記憶體上限，整數加上 `m` 或 `g`，例如 `256m`、`1g` | `256m` |
 | `cpus` | CPU 上限，大於 0 的數字 | `0.5` |
 

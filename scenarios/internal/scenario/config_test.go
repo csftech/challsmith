@@ -12,7 +12,7 @@ func TestParseSingleDefaults(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 80, c.Port)
 	assert.Equal(t, "http", c.Protocol)
-	assert.Equal(t, "CTF", c.FlagPrefix)
+	assert.Equal(t, "APS", c.FlagPrefix)
 	assert.Equal(t, 256, c.MemoryMB)
 	assert.Equal(t, 0.5, c.CPUs)
 }

@@ -9,7 +9,7 @@ DOCKERFILE = "services/app/Dockerfile"
 
 
 def flag_of(url):
-    return re.search(r"CTF\{[^}]*\}", get_until(url + "/", "CTF{")).group(0)
+    return re.search(r"APS\{[^}]*\}", get_until(url + "/", "APS{")).group(0)
 
 
 def published(web, admin, slug):

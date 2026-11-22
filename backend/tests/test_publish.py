@@ -72,7 +72,7 @@ def test_build_additional_single(db):
     img = f"{PREFIX}/php-strcmp-app:abc"
     assert publish_service.build_additional(meta, {"app": img}) == (
         "registry:5000/challsmith/scenarios/single:v1",
-        {"image": img, "port": "80", "protocol": "http", "flag": "php_strcmp_array", "flag_prefix": "CTF",
+        {"image": img, "port": "80", "protocol": "http", "flag": "php_strcmp_array", "flag_prefix": "APS",
          "memory": "256m", "cpus": "0.5"},
     )
 

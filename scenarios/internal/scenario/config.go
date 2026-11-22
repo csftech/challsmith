@@ -39,7 +39,7 @@ type MultiConfig struct {
 var nameRe = regexp.MustCompile(`^[a-z0-9-]+$`)
 
 func parseCommon(a map[string]string) (Common, error) {
-	c := Common{Protocol: "http", FlagPrefix: "CTF", MemoryMB: 256, CPUs: 0.5, Flag: a["flag"]}
+	c := Common{Protocol: "http", FlagPrefix: "APS", MemoryMB: 256, CPUs: 0.5, Flag: a["flag"]}
 	if c.Flag == "" {
 		return c, fmt.Errorf("additional: missing required key %q", "flag")
 	}

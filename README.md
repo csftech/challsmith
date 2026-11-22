@@ -128,7 +128,7 @@ It keeps the challenges, the images in the registry, the git settings and the CT
 
 ### How the image reads the flag
 
-Every container gets the environment variable `FLAG`, for example `CTF{php_strcmp_array_...}`. The image must not contain the flag. Its entrypoint or code reads `FLAG` at start, for example writing it to `/flag.txt` or into a database. In a multi challenge every service receives `FLAG`, and a `FLAG` set in the `env` of a service is overridden. The flag differs per instance, including after the same trainee deletes and reopens an instance.
+Every container gets the environment variable `FLAG`, for example `APS{php_strcmp_array_3f9a1c07e2b84d65}`: the template body, an underscore and the instance identity (chall-manager's 64-bit random value). Two instances practically never get the same flag, however short the template is, the flag stays the same while the instance lives, and an admin can tell from a submitted flag which instance it belongs to. The image must not contain the flag. Its entrypoint or code reads `FLAG` at start, for example writing it to `/flag.txt` or into a database. In a multi challenge every service receives `FLAG`, and a `FLAG` set in the `env` of a service is overridden. The flag differs per instance, including after the same trainee deletes and reopens an instance.
 
 ### Keys for single
 
@@ -138,7 +138,7 @@ Every container gets the environment variable `FLAG`, for example `CTF{php_strcm
 | `flag` | Flag template body, for example `php_strcmp_array` | required |
 | `port` | Service port inside the container (1-65535) | `80` |
 | `protocol` | `http` gives `http://localhost:<port>`, `tcp` gives `nc localhost <port>` | `http` |
-| `flag_prefix` | Outer flag format, giving `CTF{...}` | `CTF` |
+| `flag_prefix` | Outer flag format, giving `APS{...}` | `APS` |
 | `memory` | Memory limit, an integer with suffix `m` or `g`, for example `256m`, `1g` | `256m` |
 | `cpus` | CPU limit, a number greater than 0 | `0.5` |
 

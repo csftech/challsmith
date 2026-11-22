@@ -58,7 +58,7 @@ class ChallengeMeta(BaseModel):
     template: str | None = None
     scenario: Literal["single", "multi"]
     flag: str
-    flag_prefix: str = "CTF"
+    flag_prefix: str = "APS"
     protocol: Literal["http", "tcp"] = "http"
     instance: InstanceSpec = InstanceSpec()
     services: list[ServiceSpec]

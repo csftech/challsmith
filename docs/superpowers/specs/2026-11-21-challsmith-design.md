@@ -137,7 +137,7 @@ challsmith 只維護兩個通用 scenario，都以 ctfd-chall-manager 的 `hack/
 | `port` | container 內部的服務 port | `80` |
 | `protocol` | `http` 或 `tcp`，決定 connection_info 的格式 | `http` |
 | `flag` | flag 範本的內文，例如 `php_strcmp_array` | 必填 |
-| `flag_prefix` | flag 外層的格式 | `CTF` |
+| `flag_prefix` | flag 外層的格式 | `APS` |
 | `memory` / `cpus` | 資源上限 | `256m` / `0.5` |
 
 對外的 port 由 Docker 隨機分配，只綁在 `127.0.0.1`。connection_info 在 `http` 時為 `http://localhost:<port>`，在 `tcp` 時為 `nc localhost <port>`。
@@ -161,7 +161,7 @@ challsmith 只維護兩個通用 scenario，都以 ctfd-chall-manager 的 `hack/
 ### 6.3 動態 flag
 
 1. 作者在 web app 設定 flag 範本，例如 `php_strcmp_array`，發佈時寫進 `additional.flag`。
-2. scenario 以 `sdk.Variate(identity, flag)` 產生這個 instance 的 flag，再用 `flag_prefix` 包成 `CTF{...}`。
+2. scenario 在 flag 範本後面接上這個 instance 的 identity，再用 `flag_prefix` 包起來，例如 `APS{php_strcmp_array_3f9a1c07e2b84d65}`。原本使用的 `sdk.Variate` 只在字母的大小寫與數字寫法之間變形，flag 範本短時變化很少，不同 instance 容易拿到相同的 flag，因此改為直接接上 identity。flag 完全由 identity 決定，重新執行 scenario 時 flag 維持不變，管理者也能從提交的 flag 看出它屬於哪個 instance。
 3. scenario 把 flag 以環境變數 `FLAG` 注入題目 container。多 container 時注入所有 container，由題目自己決定在哪裡使用，例如寫進 DB。
 4. scenario 在回應中輸出這個 flag，交給 ctfd-chall-manager 驗證。
 

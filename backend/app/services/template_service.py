@@ -47,7 +47,7 @@ def instantiate(name: str, slug: str, title: str) -> tuple[challenge_schema.Chal
         template=name,
         scenario=spec["scenario"],
         flag=slug.replace("-", "_"),
-        flag_prefix=spec.get("flag_prefix", "CTF"),
+        flag_prefix=spec.get("flag_prefix", "APS"),
         protocol=spec.get("protocol", "http"),
         instance=challenge_schema.InstanceSpec(**spec.get("instance", {})),
         services=[challenge_schema.ServiceSpec(**s) for s in spec["services"]],

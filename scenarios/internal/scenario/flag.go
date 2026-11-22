@@ -1,8 +1,8 @@
 package scenario
 
-import "github.com/ctfer-io/chall-manager/sdk"
-
-// BuildFlag returns "<prefix>{<variated>}", unique per identity.
+// BuildFlag returns "<prefix>{<flag>_<identity>}".
+// The identity is chall-manager's 64-bit crypto-random per-instance value, so flags stay distinct
+// however short the template is; it is deterministic so re-running the scenario keeps the flag.
 func BuildFlag(identity string, c Common) string {
-	return c.FlagPrefix + "{" + sdk.Variate(identity, c.Flag) + "}"
+	return c.FlagPrefix + "{" + c.Flag + "_" + identity + "}"
 }
