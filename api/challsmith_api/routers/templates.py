@@ -1,10 +1,10 @@
 from fastapi import APIRouter
 
-from challsmith_api.services import templates
+from challsmith_api.services import template_service
 
 router = APIRouter()
 
 
 @router.get("/templates")
-def get_templates() -> list[templates.TemplateInfo]:
-    return templates.list_templates()
+def get_templates() -> list[template_service.TemplateInfo]:
+    return template_service.list_templates()

@@ -77,11 +77,11 @@ def test_token_not_stored_in_plaintext(client, db):
 
 
 def test_clear_sessions(client, db):
-    from challsmith_api.services.auth import clear_sessions
+    from challsmith_api.services import auth_service
 
     login(client)
     login(client)
-    assert clear_sessions(db) == 2
+    assert auth_service.clear_sessions(db) == 2
     assert db.execute(text("SELECT count(*) FROM web_sessions")).scalar() == 0
 
 

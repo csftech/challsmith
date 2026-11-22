@@ -1,9 +1,9 @@
-from challsmith_api.formats.challenge import from_folder, parse_challenge_yml
-from challsmith_api.formats.hashing import content_hash, service_hash
+from challsmith_api.formats import challenge_format
+from challsmith_api.formats import hashing_format
 
 from test_challenge_format import SPEC
 
-META = parse_challenge_yml(SPEC)
+META = challenge_format.parse_challenge_yml(SPEC)
 
 OTHER = """\
 visible: true
@@ -25,24 +25,24 @@ slug: php-strcmp
 
 
 def test_hash_ignores_crlf():
-    assert content_hash(META, {"a": b"a\r\nb"}) == content_hash(META, {"a": b"a\nb"})
-    assert content_hash(META, {"a": b"a\r\n\0"}) != content_hash(META, {"a": b"a\n\0"})
+    assert hashing_format.content_hash(META, {"a": b"a\r\nb"}) == hashing_format.content_hash(META, {"a": b"a\nb"})
+    assert hashing_format.content_hash(META, {"a": b"a\r\n\0"}) != hashing_format.content_hash(META, {"a": b"a\n\0"})
 
 
 def test_hash_changes_with_meta():
-    assert content_hash(META, {}) != content_hash(META.model_copy(update={"value": 200}), {})
+    assert hashing_format.content_hash(META, {}) != hashing_format.content_hash(META.model_copy(update={"value": 200}), {})
 
 
 def test_hash_ignores_yaml_formatting():
-    a, b = from_folder({"challenge.yml": SPEC}), from_folder({"challenge.yml": OTHER})
+    a, b = challenge_format.from_folder({"challenge.yml": SPEC}), challenge_format.from_folder({"challenge.yml": OTHER})
     assert a[0] == b[0]
-    assert content_hash(*a) == content_hash(*b)
+    assert hashing_format.content_hash(*a) == hashing_format.content_hash(*b)
 
 
 def test_service_hash_scoped():
     f = {"services/app/x": b"1", "services/db/x": b"1"}
-    assert service_hash(f, "app") == service_hash({**f, "services/db/x": b"2"}, "app")
-    assert service_hash(f, "app") != service_hash({**f, "services/app/x": b"2"}, "app")
+    assert hashing_format.service_hash(f, "app") == hashing_format.service_hash({**f, "services/db/x": b"2"}, "app")
+    assert hashing_format.service_hash(f, "app") != hashing_format.service_hash({**f, "services/app/x": b"2"}, "app")
 
 
 def test_service_hash_is_blake3():
@@ -50,5 +50,5 @@ def test_service_hash_is_blake3():
 
     body = b"hi"
     expected = blake3(b"\0F\0services/a/x\0" + b"2\0" + body).hexdigest()
-    assert service_hash({"services/a/x": body}, "a") == expected
+    assert hashing_format.service_hash({"services/a/x": body}, "a") == expected
     assert len(expected) == 64

@@ -1,8 +1,6 @@
 import pytest
 
-from challsmith_api.formats.challenge import (
-    ChallengeMeta, dump_challenge_yml, from_folder, parse_challenge_yml, safe_relpath, to_folder,
-)
+from challsmith_api.formats import challenge_format
 
 SPEC = """\
 slug: php-strcmp
@@ -27,10 +25,10 @@ visible: true
 
 
 def test_yaml_roundtrip():
-    meta = parse_challenge_yml(SPEC)
-    out = dump_challenge_yml(meta)
-    assert parse_challenge_yml(out) == meta
-    assert dump_challenge_yml(meta) == out
+    meta = challenge_format.parse_challenge_yml(SPEC)
+    out = challenge_format.dump_challenge_yml(meta)
+    assert challenge_format.parse_challenge_yml(out) == meta
+    assert challenge_format.dump_challenge_yml(meta) == out
     assert b"flag_prefix: CTF" in out and b"memory: 256m" in out
 
 
@@ -48,24 +46,24 @@ def _svc(**kw):
     {"instance": {"memory": "256m\n"}},
 ])
 def test_validation_errors(patch):
-    meta = parse_challenge_yml(SPEC).model_dump(mode="json") | patch
+    meta = challenge_format.parse_challenge_yml(SPEC).model_dump(mode="json") | patch
     with pytest.raises(ValueError):
-        ChallengeMeta.model_validate(meta)
+        challenge_format.ChallengeMeta.model_validate(meta)
 
 
 @pytest.mark.parametrize("p", ["../x", "/etc/passwd", "a/../../b", "a\\b", ""])
 def test_safe_relpath_rejects(p):
     with pytest.raises(ValueError):
-        safe_relpath(p)
+        challenge_format.safe_relpath(p)
 
 
 def test_safe_relpath_normalizes():
-    assert safe_relpath("services/app/./index.php") == "services/app/index.php"
+    assert challenge_format.safe_relpath("services/app/./index.php") == "services/app/index.php"
 
 
 def test_folder_roundtrip_and_missing_yml():
-    meta = parse_challenge_yml(SPEC)
-    folder = to_folder(meta, {"services/app/index.php": b"x"})
-    assert from_folder(folder) == (meta, {"services/app/index.php": b"x"})
+    meta = challenge_format.parse_challenge_yml(SPEC)
+    folder = challenge_format.to_folder(meta, {"services/app/index.php": b"x"})
+    assert challenge_format.from_folder(folder) == (meta, {"services/app/index.php": b"x"})
     with pytest.raises(ValueError):
-        from_folder({"a": b""})
+        challenge_format.from_folder({"a": b""})

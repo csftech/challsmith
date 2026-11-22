@@ -3,7 +3,7 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel
 
-from challsmith_api.formats.challenge import ChallengeMeta, InstanceSpec, ServiceSpec
+from challsmith_api.formats import challenge_format
 from challsmith_api.core.config import get_settings
 
 
@@ -36,10 +36,10 @@ def list_templates() -> list[TemplateInfo]:
     ]
 
 
-def instantiate(name: str, slug: str, title: str) -> tuple[ChallengeMeta, dict[str, bytes]]:
+def instantiate(name: str, slug: str, title: str) -> tuple[challenge_format.ChallengeMeta, dict[str, bytes]]:
     path = _dir(name)
     spec = _spec(path)
-    meta = ChallengeMeta(
+    meta = challenge_format.ChallengeMeta(
         slug=slug,
         name=title,
         category=spec.get("category", "Web"),
@@ -49,8 +49,8 @@ def instantiate(name: str, slug: str, title: str) -> tuple[ChallengeMeta, dict[s
         flag=slug.replace("-", "_"),
         flag_prefix=spec.get("flag_prefix", "CTF"),
         protocol=spec.get("protocol", "http"),
-        instance=InstanceSpec(**spec.get("instance", {})),
-        services=[ServiceSpec(**s) for s in spec["services"]],
+        instance=challenge_format.InstanceSpec(**spec.get("instance", {})),
+        services=[challenge_format.ServiceSpec(**s) for s in spec["services"]],
     )
     files = {
         "services/" + f.relative_to(path).as_posix(): f.read_bytes()

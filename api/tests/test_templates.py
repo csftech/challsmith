@@ -1,21 +1,21 @@
 import pytest
 
-from challsmith_api.services import templates
-from challsmith_api.formats.challenge import from_folder, to_folder
+from challsmith_api.services import template_service
+from challsmith_api.formats import challenge_format
 from test_auth import admin_env, bearer, login  # noqa: F401  (fixture reused)
 
 NAMES = {"php", "python-flask", "node-nextjs", "nginx-php-db", "tcp"}
 
 
 def test_lists_all_templates():
-    infos = templates.list_templates()
+    infos = template_service.list_templates()
     assert {t.name for t in infos} == NAMES
     assert all(t.description and t.scenario in ("single", "multi") for t in infos)
 
 
 @pytest.mark.parametrize("name", sorted(NAMES))
 def test_instantiate_roundtrip(name):
-    meta, files = templates.instantiate(name, "my-chall", "My Chall")
+    meta, files = template_service.instantiate(name, "my-chall", "My Chall")
     assert (meta.slug, meta.name, meta.template, meta.value) == ("my-chall", "My Chall", name, 100)
     assert (meta.flag, meta.tags, meta.description) == ("my_chall", [], "")
     assert meta.category == ("Pwn" if name == "tcp" else "Web")
@@ -23,12 +23,12 @@ def test_instantiate_roundtrip(name):
     for s in meta.services:
         if not s.image:
             assert f"services/{s.name}/Dockerfile" in files
-    assert from_folder(to_folder(meta, files)) == (meta, files)
+    assert challenge_format.from_folder(challenge_format.to_folder(meta, files)) == (meta, files)
 
 
 def test_unknown_template():
     with pytest.raises(KeyError):
-        templates.instantiate("nope", "x", "X")
+        template_service.instantiate("nope", "x", "X")
 
 
 def test_route(client, db):
@@ -41,4 +41,4 @@ def test_route(client, db):
 @pytest.mark.parametrize("name", ["..", "php/../php", ".", "", "/etc"])
 def test_instantiate_rejects_path_tricks(name):
     with pytest.raises(KeyError):
-        templates.instantiate(name, "x", "X")
+        template_service.instantiate(name, "x", "X")

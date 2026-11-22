@@ -1,9 +1,13 @@
-from fastapi import Depends, Header
+from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from challsmith_api.core.db import get_session
+from challsmith_api.core.security import now, token_hash
 from challsmith_api.models import WebSession
-from challsmith_api.services.auth import now, token_hash, unauthorized
+
+
+def _unauthorized() -> HTTPException:
+    return HTTPException(401, "unauthorized", headers={"WWW-Authenticate": "Bearer"})
 
 
 def require_session(
@@ -12,12 +16,12 @@ def require_session(
 ) -> WebSession:
     scheme, _, token = (authorization or "").partition(" ")
     if scheme.lower() != "bearer" or not token:
-        raise unauthorized()
+        raise _unauthorized()
     row = db.get(WebSession, token_hash(token))
     if row is None:
-        raise unauthorized()
+        raise _unauthorized()
     if row.expires_at <= now():
         db.delete(row)  # lazy cleanup of expired sessions
         db.commit()
-        raise unauthorized()
+        raise _unauthorized()
     return row

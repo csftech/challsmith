@@ -1,7 +1,7 @@
 from blake3 import blake3
 import json
 
-from .challenge import ChallengeMeta
+from challsmith_api.formats import challenge_format
 
 
 def _norm(data: bytes) -> bytes:
@@ -16,7 +16,7 @@ def _digest(head: bytes, files: dict[str, bytes]) -> str:
     return h.hexdigest()
 
 
-def content_hash(meta: ChallengeMeta, files: dict[str, bytes]) -> str:
+def content_hash(meta: challenge_format.ChallengeMeta, files: dict[str, bytes]) -> str:
     head = json.dumps(meta.model_dump(mode="json"), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return _digest(head.encode(), files)
 

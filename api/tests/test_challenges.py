@@ -4,7 +4,7 @@ import zipfile
 import pytest
 from sqlalchemy import select
 
-from challsmith_api.services.challenges import current_hash, load_challenge
+from challsmith_api.services import challenge_service
 from challsmith_api.models import Challenge
 from test_auth import admin_env, bearer, login  # noqa: F401  (fixture reused)
 
@@ -140,8 +140,8 @@ def test_upload_rejections_change_nothing(api):
 
 def test_status_published_then_modified(api, db):
     make(api)
-    ch, _, _ = load_challenge(db, "c1")
-    ch.ctfd_id, ch.published_hash = 1, current_hash(db, ch)
+    ch, _, _ = challenge_service.load_challenge(db, "c1")
+    ch.ctfd_id, ch.published_hash = 1, challenge_service.current_hash(db, ch)
     db.commit()
     assert api.get("/challenges/c1").json()["status"]["publish"] == "published"
     api.put(f"/challenges/c1/files/services/{folder_svc(api)}/Dockerfile", content=b"changed")

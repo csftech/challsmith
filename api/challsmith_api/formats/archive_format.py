@@ -6,7 +6,7 @@ import tarfile
 import zipfile
 import zlib
 
-from .challenge import safe_relpath
+from challsmith_api.formats import challenge_format
 
 MAX_MEMBERS = 2000
 MAX_TOTAL = 100 * 1024 * 1024
@@ -31,7 +31,7 @@ def _name(raw: str, is_dir: bool) -> str | None:
     """Safe relative name, or None for the root directory member ("." or "./")."""
     if is_dir and posixpath.normpath(raw) == ".":
         return None
-    return safe_relpath(raw.rstrip("/"))
+    return challenge_format.safe_relpath(raw.rstrip("/"))
 
 
 def extract_zip(data: bytes) -> dict[str, bytes]:
