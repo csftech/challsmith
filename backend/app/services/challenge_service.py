@@ -11,11 +11,12 @@ from app.core.config import get_settings
 from app.utils import archive_util, hash_util
 from app.schemas import challenge_schema
 from app.models import Challenge
-from app.repositories import challenge_repository, publish_run_repository
+from app.repositories import challenge_repository, publish_run_repository, setting_repository
 from app.services import image_cleanup_service, order_service, template_service
 from app.services.errors import BadGateway, BadRequest, Conflict, NotFound, TooLarge, Unprocessable
 
 MAX_FILE = 20 * 1024 * 1024
+ORDER_LOCK = 0x6F7264  # advisory lock: one writer of the order (DB and CTFd) at a time
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +118,7 @@ def _rows(chs: list[Challenge]) -> list[order_service.Row]:
 
 
 def list_summaries(db: Session, ctfd: ctfd_client.CtfdClient) -> dict:
+    setting_repository.lock_key(db, ORDER_LOCK)  # before reading: a concurrent save must not be overwritten by a stale write-back
     chs = challenge_repository.list_all(db)
     ctfd_ok, pos = True, {}
     if any(c.ctfd_id is not None for c in chs):
@@ -128,9 +130,9 @@ def list_summaries(db: Session, ctfd: ctfd_client.CtfdClient) -> dict:
         order = order_service.reconcile(_rows(chs), pos)
         if order != [c.slug for c in chs]:
             challenge_repository.set_positions(db, order)
-            db.commit()
             by = {c.slug: c for c in chs}
             chs = [by[s] for s in order]
+    db.commit()  # releases ORDER_LOCK before the slow part below
     # shortcut: hashes every challenge's files per call, cache if the list gets big
     items = []
     for ch in chs:
@@ -166,10 +168,15 @@ def _push(ctfd: ctfd_client.CtfdClient, targets: list[tuple[str, int, int]]) -> 
 
 def push_positions(db: Session, ctfd: ctfd_client.CtfdClient) -> list[str]:
     """Send every published challenge's position to CTFd; returns the slugs that failed."""
-    return _push(ctfd, [(c.slug, c.ctfd_id, c.position) for c in challenge_repository.list_all(db) if c.ctfd_id is not None])
+    setting_repository.lock_key(db, ORDER_LOCK)
+    known = ctfd.list_positions()
+    failed = _push(ctfd, [(c.slug, c.ctfd_id, c.position) for c in challenge_repository.list_all(db) if c.ctfd_id in known])
+    db.commit()  # releases ORDER_LOCK
+    return failed
 
 
 def save_order(db: Session, ctfd: ctfd_client.CtfdClient, order: list[str]) -> None:
+    setting_repository.lock_key(db, ORDER_LOCK)
     chs = challenge_repository.list_all(db)
     order_service.validate_order(order, _rows(chs))
     by = {c.slug: c for c in chs}
@@ -223,6 +230,7 @@ def update_meta(db: Session, slug: str, meta: challenge_schema.ChallengeMeta, pr
     if orphans and not prune:
         raise Conflict({"orphans": orphans}, code="orphan_files")
     if meta.category != meta_of(ch).category:
+        setting_repository.lock_key(db, ORDER_LOCK)
         rows = [r._replace(category=meta.category) if r.slug == slug else r for r in _rows(challenge_repository.list_all(db))]
         challenge_repository.set_positions(db, order_service.move_to_category_end(rows, slug, meta.category))
     ch.meta = meta.model_dump(mode="json")

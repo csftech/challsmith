@@ -60,6 +60,9 @@ class FakeCtfd:
     def delete_challenge(self, cid):
         self.deleted.append(cid)
 
+    def list_positions(self):
+        return {12: (1, 100)}  # the challenge create_challenge returns
+
     def set_position(self, cid, position):
         if getattr(self, "position_fail", False):
             raise ctfd_client.CtfdError("positions down")

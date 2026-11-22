@@ -6,6 +6,7 @@ from app.clients import ctfd_client
 from app.main import app
 from app.models import Challenge
 from app.repositories import challenge_repository
+from app.services import challenge_service
 from test_auth import admin_env, bearer, login  # noqa: F401  (fixture reused)
 
 
@@ -155,3 +156,9 @@ def test_category_change_moves_to_end(api, db):
     assert order(db) == ["b", "c", "d", "a"]
     recategorise(api, "a", cat_b)  # lands after c, the last of its new category, not at the very end
     assert order(db) == ["b", "c", "a", "d"]
+
+
+def test_push_positions_skips_missing(api, db):
+    seed(api, db, "a", "b")
+    f = FakeCtfd({20: (5, 1)})
+    assert challenge_service.push_positions(db, f) == [] and f.set == [(20, 2)]
