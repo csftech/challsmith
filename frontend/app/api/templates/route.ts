@@ -1,24 +1,11 @@
-import { cookies } from "next/headers";
-
-import { API_URL, COOKIE, KEEP_HEADERS } from "@/server/config";
+import { API_URL } from "@/server/config";
+import { forwardInit, passBack, unreachable } from "@/utils/bff";
 
 export async function GET() {
-  const token = (await cookies()).get(COOKIE)?.value; // proxy.ts already answered 401 without one
-  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-  let up: Response;
   try {
-    up = await fetch(`${API_URL}/templates`, {
-      headers,
-      redirect: "manual",
-      cache: "no-store",
-    });
+    const up = await fetch(`${API_URL}/templates`, { method: "GET", ...(await forwardInit()) });
+    return passBack(up);
   } catch {
-    return Response.json({ detail: "api unreachable" }, { status: 502 });
+    return unreachable();
   }
-  const out = new Headers();
-  for (const h of KEEP_HEADERS) {
-    const v = up.headers.get(h);
-    if (v) out.set(h, v);
-  }
-  return new Response(up.body, { status: up.status, headers: out });
 }
