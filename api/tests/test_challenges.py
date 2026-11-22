@@ -157,3 +157,43 @@ def test_delete_challenge(api, db):
     assert api.get("/challenges/c1").status_code == 404
     assert db.scalars(select(Challenge)).all() == []
     assert api.delete("/challenges/c1").status_code == 404
+
+
+def _setup_multi(api):
+    make(api, "m1", "nginx-php-db")
+    return api.get("/challenges/m1").json()
+
+
+def _state(api):
+    d = api.get("/challenges/m1").json()
+    return d["meta"], d["files"]
+
+
+def test_put_meta_orphans(api):
+    d = _setup_multi(api)
+    meta = d["meta"]
+    folder = [s["name"] for s in meta["services"] if not s.get("image") and not s["entry"]]
+    assert folder
+    gone = folder[0]
+    gone_paths = sorted(f["path"] for f in d["files"] if f["path"].startswith(f"services/{gone}/"))
+    # remove a service
+    m2 = {**meta, "services": [s for s in meta["services"] if s["name"] != gone]}
+    r = api.put("/challenges/m1", json=m2)
+    assert r.status_code == 409 and r.json()["detail"] == {"orphans": gone_paths}
+    assert _state(api) == (meta, d["files"])
+    # rename -> 409
+    m3 = {**meta, "services": [{**s, "name": "zz"} if s["name"] == gone else s for s in meta["services"]]}
+    assert api.put("/challenges/m1", json=m3).status_code == 409
+    # folder -> image -> 409
+    m4 = {**meta, "services": [{**s, "image": "nginx:1.30-alpine"} if s["name"] == gone else s for s in meta["services"]]}
+    assert api.put("/challenges/m1", json=m4).status_code == 409
+    # no orphans -> 200
+    assert api.put("/challenges/m1", json={**meta, "value": 7}).status_code == 200
+    # prune
+    r = api.put("/challenges/m1?prune=true", json=m2)
+    assert r.status_code == 200
+    m, files = _state(api)
+    assert m == api.get("/challenges/m1").json()["meta"] and m["services"] == m2["services"]
+    paths = {f["path"] for f in files}
+    assert not paths & set(gone_paths)
+    assert {f["path"] for f in d["files"]} - set(gone_paths) == paths

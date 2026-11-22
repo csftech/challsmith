@@ -1,5 +1,6 @@
 from posixpath import basename
 
+from fastapi.concurrency import run_in_threadpool
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import delete, func, select
@@ -71,11 +72,11 @@ def delete_challenge(db: Session, ch: Challenge) -> None:
     db.commit()
 
 
-def _put_files(db: Session, ch: Challenge, put: dict[str, bytes] | None = None, remove: str | None = None) -> None:
+def _put_files(db: Session, ch: Challenge, put: dict[str, bytes] | None = None, remove: list[str] | None = None) -> None:
     for path, content in (put or {}).items():
         db.merge(ChallengeFile(challenge_id=ch.id, path=path, content=content))
-    if remove is not None:
-        db.execute(delete(ChallengeFile).where(ChallengeFile.challenge_id == ch.id, ChallengeFile.path == remove))
+    if remove:
+        db.execute(delete(ChallengeFile).where(ChallengeFile.challenge_id == ch.id, ChallengeFile.path.in_(remove)))
     ch.updated_at = func.now()
     db.commit()
 
@@ -153,12 +154,16 @@ def get_challenge(slug: str, db: Session = Depends(get_session)):
 
 
 @router.put("/challenges/{slug}")
-def put_meta(slug: str, meta: ChallengeMeta, db: Session = Depends(get_session)):
-    ch, _, _ = load_challenge(db, slug)
+def put_meta(slug: str, meta: ChallengeMeta, prune: bool = False, db: Session = Depends(get_session)):
+    ch, _, files = load_challenge(db, slug)
     if meta.slug != slug:
         raise HTTPException(400, "slug cannot be changed")
+    folders = {s.name for s in meta.services if not s.image}
+    orphans = sorted(p for p in files if p.startswith("services/") and p.split("/")[1] not in folders)
+    if orphans and not prune:
+        raise HTTPException(409, {"orphans": orphans})
     ch.meta = meta.model_dump(mode="json")
-    _put_files(db, ch)
+    _put_files(db, ch, remove=orphans)
     return {"ok": True}
 
 
@@ -179,14 +184,17 @@ def get_file(slug: str, path: str, db: Session = Depends(get_session)):
 
 @router.put("/challenges/{slug}/files/{path:path}")
 async def put_file(slug: str, path: str, request: Request, db: Session = Depends(get_session)):
-    ch, meta, _ = load_challenge(db, slug)
-    path = _service_path(meta, path, need_rest=True)
+    def check():
+        ch, meta, _ = load_challenge(db, slug)
+        return ch, _service_path(meta, path, need_rest=True)
+
+    ch, path = await run_in_threadpool(check)
     body = bytearray()
     async for chunk in request.stream():
         body += chunk
         if len(body) > MAX_FILE:
             raise HTTPException(413, "file too large")
-    _put_files(db, ch, {path: bytes(body)})
+    await run_in_threadpool(_put_files, db, ch, {path: bytes(body)})
     return {"ok": True}
 
 
@@ -196,7 +204,7 @@ def delete_file(slug: str, path: str, db: Session = Depends(get_session)):
     path = _service_path(meta, path, need_rest=True)
     if path not in files:
         raise HTTPException(404, "file not found")
-    _put_files(db, ch, remove=path)
+    _put_files(db, ch, remove=[path])
     return {"ok": True}
 
 
