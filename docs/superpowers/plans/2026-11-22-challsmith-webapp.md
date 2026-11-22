@@ -32,8 +32,8 @@
 - `slug` 必須符合 `^[a-z0-9][a-z0-9-]{0,47}$`，service 名稱必須符合 `^[a-z0-9-]+$`（與 `scenarios/internal/scenario/config.go` 的 `nameRe` 一致）。
 - web app 只有一個管理者帳號，帳密來自 `challsmith.env` 的 `WEB_ADMIN_USER`、`WEB_ADMIN_PASSWORD`。
 - `README.md`（英文）與 `README_ZH-TW.md`（繁體中文）內容一致，兩份都要更新。
-- api 採 FastAPI 慣用的分層架構（router、service、repository、model），模組依「檔案結構」的資料夾分層：`core/`、`models/`、`repositories/`、`formats/`、`clients/`、`services/`、`routers/`、`cli/`。router 只處理 HTTP（解析請求、呼叫 service、轉換錯誤成狀態碼），業務邏輯放在 `services/`，資料庫的查詢與寫入放在 `repositories/`，外部系統的呼叫放在 `clients/`。只有 repository 可以寫 SQLAlchemy 查詢（`select`、`delete`、`db.get`、`db.add` 等）。transaction 由 service 負責：repository 只做查詢、`add`、`delete` 與必要的 `flush`，不呼叫 `commit` 或 `rollback`。依賴方向只能往下：router → service → repository → model，service 也可以用 `clients/` 與 `formats/`，`core/` 不依賴任何上層。以下各 task 寫到的 `docker_ops.X`、`ctfd.X`、`gitrepo.X`、`chall_manager.X`、`publish.X`、`sync.X`、`cleanup.X`、`templates.X`、`challenge_format.X`，分別位於 `clients/docker.py`、`clients/ctfd.py`、`clients/git.py`、`clients/chall_manager.py`、`services/publish.py`、`services/sync.py`、`services/cleanup.py`、`services/templates.py`、`formats/challenge.py`，路由一律放在 `routers/` 的同名檔案。
-- 跨層呼叫時引用模組，不引用函式，讓呼叫端一眼看出呼叫的是哪一層。為此 `services/`、`clients/`、`formats/` 的檔名帶上層別後綴：`services/<名稱>_service.py`、`repositories/<名稱>_repository.py`、`clients/<名稱>_client.py`、`formats/<名稱>_format.py`，引用時不用 `as`，例如 `from challsmith_api.services import challenge_service`，呼叫時寫 `challenge_service.put_files(...)`，不寫 `from ...challenge_service import put_files`。`routers/` 只由 `main.py` 引用，維持 `routers/challenges.py` 這類名稱。models 的類別、`core.deps` 的 dependency、`get_settings`、`get_session` 與 `services/errors.py` 的例外類別可以直接引用名稱。同一個模組內的呼叫不受此限。下方「檔案結構」與各 task 寫的舊檔名，依此規則對應，例如 `clients/docker.py` 即 `clients/docker_client.py`、`services/publish.py` 即 `services/publish_service.py`、`formats/challenge.py` 即 `formats/challenge_format.py`。
+- api 依 FastAPI 官方範本（full-stack-fastapi-template）分層，資料夾見「檔案結構」：`core/`、`models/`、`schemas/`、`repositories/`、`services/`、`clients/`、`utils/`、`api/`（`deps.py` 與 `routes/`）、`cli/`。route 只處理 HTTP（解析請求、呼叫 service、轉換錯誤成狀態碼），業務邏輯放在 `services/`，資料庫的查詢與寫入放在 `repositories/`，外部系統的呼叫放在 `clients/`，pydantic 的輸入輸出格式放在 `schemas/`，不碰資料庫與網路的工具函式放在 `utils/`。只有 repository 可以寫 SQLAlchemy 查詢（`select`、`delete`、`db.get`、`db.add` 等）。transaction 由 service 負責：repository 只做查詢、`add`、`delete` 與必要的 `flush`，不呼叫 `commit` 或 `rollback`。依賴方向只能往下：`api/` → `services/` → `repositories/` → `models/`；service 可以用 `clients/`、`schemas/`、`utils/`；`api/deps.py` 可以用 `services/` 與 `clients/`；`core/` 不依賴任何上層。
+- 跨層呼叫時引用模組，不引用函式，讓呼叫端一眼看出呼叫的是哪一層。為此檔名帶上層別後綴：`services/<名稱>_service.py`、`repositories/<名稱>_repository.py`、`clients/<名稱>_client.py`、`schemas/<名稱>_schema.py`、`utils/<名稱>_util.py`，引用時不用 `as`，例如 `from challsmith_api.services import challenge_service`，呼叫時寫 `challenge_service.put_files(...)`，不寫 `from ...challenge_service import put_files`。`api/routes/` 只由 `main.py` 引用，維持 `routes/challenges.py` 這類名稱。可以直接引用名稱的例外：models 的類別、schemas 的 pydantic 類別、`api.deps` 的 dependency、`get_settings`、`get_session`、`core.security` 的函式、`services/errors.py` 與各 client 的例外類別。同一個模組內的呼叫不受此限。各 task 內文寫的舊檔名依此對應，例如 `docker_ops` 即 `clients/docker_client.py`、`publish` 即 `services/publish_service.py`、`challenge_format` 即 `schemas/challenge_schema.py`、`archive` 即 `utils/archive_util.py`、`hashing` 即 `utils/hash_util.py`、`routers/x.py` 即 `api/routes/x.py`。
 - 本專案自己計算的 hash 一律使用 BLAKE3（Python 用 `blake3` 套件），包括題目內容 hash、service hash（image tag）與 session token hash。上游提供的 checksum（安裝指令驗證 pulumi-docker 的 SHA-1 與 oras 的 SHA-256）照上游格式，不在此列。
 - commit 訊息結尾加上 `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`。
 
@@ -55,32 +55,18 @@ challsmith/
 │  ├─ Dockerfile                    Task 1（target runtime 與 test）
 │  ├─ requirements.txt / requirements-dev.txt
 │  ├─ alembic.ini / alembic/        Task 1（schema 版本）
-│  ├─ challsmith_api/
-│  │  ├─ main.py                    Task 1（FastAPI app，掛上各 router）
-│  │  ├─ core/                      設定、資料庫連線、FastAPI dependency
-│  │  │  ├─ config.py / db.py       Task 1
-│  │  │  └─ deps.py                 Task 3（require_session）
+│  ├─ challsmith_api/               依 FastAPI 官方範本（full-stack-fastapi-template）分層（Task 7b 起）
+│  │  ├─ main.py                    FastAPI app，掛上各 route
+│  │  ├─ core/                      config.py、db.py、security.py（token hash 與時間等底層工具）
 │  │  ├─ models/                    SQLAlchemy 資料表，一個實體一個檔案，`__init__.py` 匯出全部
-│  │  ├─ repositories/              資料庫的查詢與寫入，一個實體一個檔案（Task 6b）
-│  │  │  └─ challenge_repository.py、web_session_repository.py、setting_repository.py、publish_run_repository.py
-│  │  ├─ formats/                   純函式，不碰資料庫與網路
-│  │  │  ├─ challenge.py            Task 2（ChallengeMeta、驗證、YAML、資料夾讀寫）
-│  │  │  ├─ archive.py              Task 2（安全解壓 zip 與 tar.gz、產生 tar.gz）
-│  │  │  └─ hashing.py              Task 2
-│  │  ├─ clients/                   對外部系統的包裝
-│  │  │  ├─ docker.py               Task 6（docker CLI，`DockerOps`）
-│  │  │  ├─ ctfd.py                 Task 6（CTFd API client）
-│  │  │  ├─ git.py                  Task 7（`GitRepo`）
-│  │  │  └─ chall_manager.py        Task 8
-│  │  ├─ services/                  業務邏輯，給 router 與命令列共用
-│  │  │  ├─ auth.py                 Task 3
-│  │  │  ├─ templates.py            Task 4
-│  │  │  ├─ challenges.py           Task 5（load、save、hash、狀態、刪除）
-│  │  │  ├─ publish.py              Task 6
-│  │  │  ├─ sync.py                 Task 7
-│  │  │  └─ cleanup.py              Task 8
-│  │  ├─ routers/                   只放 HTTP 路由，呼叫 services
-│  │  │  └─ auth.py、templates.py、challenges.py、publish.py、sync.py、cleanup.py
+│  │  ├─ schemas/                   pydantic 格式：challenge_schema.py（ChallengeMeta、challenge.yml 讀寫、資料夾格式）與各 API 的 request/response body
+│  │  ├─ repositories/              資料庫的查詢與寫入：challenge_repository.py、web_session_repository.py、setting_repository.py、publish_run_repository.py
+│  │  ├─ services/                  業務邏輯：auth_service.py、template_service.py、challenge_service.py、publish_service.py、sync_service.py、cleanup_service.py、errors.py
+│  │  ├─ clients/                   外部系統：docker_client.py、ctfd_client.py、git_client.py、chall_manager_client.py
+│  │  ├─ utils/                     純函式工具：archive_util.py（安全解壓、產生 tar.gz）、hash_util.py（BLAKE3 內容 hash）
+│  │  ├─ api/
+│  │  │  ├─ deps.py                 FastAPI dependency：require_session、get_docker_ops、get_ctfd_client 等
+│  │  │  └─ routes/                 只放 HTTP 路由：auth.py、templates.py、challenges.py、publish.py、sync.py、cleanup.py
 │  │  └─ cli/
 │  │     └─ cleanup.py              Task 8（`python -m challsmith_api.cli.cleanup`）
 │  └─ tests/
@@ -375,10 +361,30 @@ challsmith/
 - [ ] **Step 4：重跑測試，預期通過。**
 - [ ] **Step 5：commit** `feat(api): git and backup import/export with three-way change detection`
 
+### Task 7b：依官方範本調整資料夾
+
+使用者在 Task 7 進行中決定：依 FastAPI 官方範本調整資料夾。這個 task 只搬移與改 import，不改行為。
+
+**Files（全部用 `git mv`）：**
+- `routers/` → `api/routes/`（檔名不變），`core/deps.py` → `api/deps.py`
+- `formats/challenge_format.py` → `schemas/challenge_schema.py`
+- `formats/archive_format.py` → `utils/archive_util.py`，`formats/hashing_format.py` → `utils/hash_util.py`，刪除 `formats/`
+- route 檔案裡定義的 pydantic request/response class（例如 `LoginBody`、建題與匯入的 body）移到 `schemas/` 對應的 `<名稱>_schema.py`
+- `core/security.py`、`clients/`、`services/`、`repositories/`、`models/` 不動
+- Modify：`main.py`、所有 import、`api/tests/*.py` 的 import 與 monkeypatch 路徑
+
+**Interfaces:**
+- Produces：上面的新位置，不留相容用的轉接模組，不改 HTTP 行為、資料表與測試斷言。
+
+- [ ] **Step 1：搬移並修正 import。**
+- [ ] **Step 2：grep 確認沒有殘留的 `formats`、`routers`、`core.deps` import，`api/routes/` 沒有 import `repositories`，`core/` 沒有 import 上層。**
+- [ ] **Step 3：執行完整測試**，數量與 Task 7 結束時相同，全部通過。在 VM 上 `sudo ./install.sh` 後 api 正常啟動，`/health` 正常。
+- [ ] **Step 4：commit** `refactor(api): follow the FastAPI template layout (api/routes, schemas, utils)`
+
 ### Task 8：發佈前清理
 
 **Files:**
-- Create: `api/challsmith_api/clients/chall_manager.py`、`api/challsmith_api/services/cleanup.py`、`api/challsmith_api/routers/cleanup.py`、`api/challsmith_api/cli/cleanup.py`
+- Create: `api/challsmith_api/clients/chall_manager_client.py`、`api/challsmith_api/services/cleanup_service.py`、`api/challsmith_api/api/routes/cleanup.py`、`api/challsmith_api/cli/cleanup.py`
 - Modify: `api/challsmith_api/main.py`
 - Test: `api/tests/test_cleanup.py`
 
