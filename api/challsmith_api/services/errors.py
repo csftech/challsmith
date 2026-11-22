@@ -36,3 +36,7 @@ class TooLarge(DomainError):
 
 class Unprocessable(DomainError):
     status = 422
+
+
+class BadGateway(DomainError):
+    status = 502

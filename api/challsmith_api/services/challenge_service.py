@@ -5,10 +5,12 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from challsmith_api.clients import ctfd_client
+from challsmith_api.clients.ctfd_client import CtfdError, CtfdNotFound
 from challsmith_api.formats import archive_format, challenge_format, hashing_format
 from challsmith_api.models import Challenge, ChallengeFile
 from challsmith_api.services import template_service
-from challsmith_api.services.errors import BadRequest, Conflict, NotFound, TooLarge, Unprocessable
+from challsmith_api.services.errors import BadGateway, BadRequest, Conflict, NotFound, TooLarge, Unprocessable
 
 MAX_FILE = 20 * 1024 * 1024
 
@@ -61,8 +63,14 @@ def status_of(challenge: Challenge, current: str) -> dict:
     return {"publish": publish, "sync": sync}
 
 
-def delete_challenge(db: Session, ch: Challenge) -> None:
-    # Task 6: when ch.ctfd_id is set, delete it on CTFd first (404 counts as deleted).
+def delete_challenge(db: Session, ch: Challenge, ctfd: ctfd_client.CtfdClient) -> None:
+    if ch.ctfd_id is not None:
+        try:
+            ctfd.delete_challenge(ch.ctfd_id)
+        except CtfdNotFound:
+            pass  # already gone on CTFd
+        except CtfdError as e:
+            raise BadGateway(f"could not delete the CTFd challenge: {e}")
     db.delete(ch)
     db.commit()
 

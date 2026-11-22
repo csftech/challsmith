@@ -1,6 +1,8 @@
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
+from challsmith_api.clients import ctfd_client, docker_client
+from challsmith_api.core.config import get_settings
 from challsmith_api.core.db import get_session
 from challsmith_api.core.security import now, token_hash
 from challsmith_api.models import WebSession
@@ -25,3 +27,13 @@ def require_session(
         db.commit()
         raise _unauthorized()
     return row
+
+
+def get_docker_ops() -> docker_client.DockerOps:
+    s = get_settings()
+    return docker_client.DockerOps(s.upstream_http_proxy, s.upstream_https_proxy, s.upstream_no_proxy)
+
+
+def get_ctfd_client() -> ctfd_client.CtfdClient:
+    s = get_settings()
+    return ctfd_client.CtfdClient(s.ctfd_url, s.ctfd_admin_name, s.ctfd_admin_password)

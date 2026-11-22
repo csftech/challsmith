@@ -3,7 +3,9 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from challsmith_api.clients import ctfd_client
 from challsmith_api.core.db import get_session
+from challsmith_api.core.deps import get_ctfd_client
 from challsmith_api.formats import challenge_format
 from challsmith_api.services import challenge_service
 
@@ -39,9 +41,13 @@ def put_meta(slug: str, meta: challenge_format.ChallengeMeta, prune: bool = Fals
 
 
 @router.delete("/challenges/{slug}")
-def remove_challenge(slug: str, db: Session = Depends(get_session)):
+def remove_challenge(
+    slug: str,
+    db: Session = Depends(get_session),
+    ctfd: ctfd_client.CtfdClient = Depends(get_ctfd_client),
+):
     ch, _, _ = challenge_service.load_challenge(db, slug)
-    challenge_service.delete_challenge(db, ch)
+    challenge_service.delete_challenge(db, ch, ctfd)
     return {"ok": True}
 
 
