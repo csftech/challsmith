@@ -17,7 +17,7 @@ blocked() {
 }
 ips() { docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' "$1"; }
 
-for svc in ctfd:8000 ctfd-db:3306 ctfd-redis:6379 chall-manager:8080 registry:5000; do
+for svc in ctfd:8000 ctfd-db:3306 ctfd-redis:6379 chall-manager:8080 registry:5000 api:8000 app-db:5432 web:3000; do
   name=${svc%:*} port=${svc#*:}
   c=$(docker ps -q -f label=com.docker.compose.project=challsmith -f label=com.docker.compose.service="$name")
   [ -n "$c" ] || { echo "FAIL $name is not running"; fail=1; continue; }
@@ -25,6 +25,21 @@ for svc in ctfd:8000 ctfd-db:3306 ctfd-redis:6379 chall-manager:8080 registry:50
 done
 blocked 127.0.0.1 5000 registry
 expect open 127.0.0.1 8000 ctfd
+blocked 127.0.0.1 3000 web
+open_as aps 127.0.0.1 3000 && echo "ok   aps web 127.0.0.1:3000 open" || { echo "FAIL aps web 127.0.0.1:3000 closed"; fail=1; }
+
+# instance networks: a container on a challenge-* network must not reach any platform service
+docker rm -f challenge-isocheck-c >/dev/null 2>&1; docker network rm challenge-isocheck >/dev/null 2>&1
+trap 'docker rm -f challenge-isocheck-c >/dev/null 2>&1; docker network rm challenge-isocheck >/dev/null 2>&1' EXIT
+docker network create challenge-isocheck >/dev/null && docker run -d --name challenge-isocheck-c --network challenge-isocheck alpine:3.24.4 sleep 120 >/dev/null   || { echo "FAIL cannot start the challenge-isocheck container"; fail=1; }
+for svc in ctfd:8000 chall-manager:8080 ctfd-redis:6379 ctfd-db:3306 api:8000 app-db:5432 web:3000 registry:5000; do
+  name=${svc%:*} port=${svc#*:}
+  c=$(docker ps -q -f label=com.docker.compose.project=challsmith -f label=com.docker.compose.service="$name")
+  for ip in $(ips "$c"); do
+    if docker exec challenge-isocheck-c nc -z -w 3 "$ip" "$port" 2>/dev/null; then echo "FAIL instance network reaches $name $ip:$port"; fail=1
+    else echo "ok   instance network blocked from $name $ip:$port"; fi
+  done
+done
 
 # challenge instances: containers outside the compose project; published port open, container IP closed
 n=0

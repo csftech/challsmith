@@ -121,7 +121,7 @@ tests/e2e/run.sh
 
 The runner's pip gets its proxy from the `proxies` section of the Docker client config (`~/.docker/config.json`) of `aps`. If you set one there, its `noProxy` must include `localhost` and `127.0.0.1`, otherwise the tests send CTFd traffic to the proxy.
 
-The `ops` isolation check runs as root. It fails if `ops` can connect to any service or instance container, to chall-manager or to the registry, or cannot reach CTFd and the published instance ports:
+The `ops` isolation check runs as root. It fails if `ops` can connect to any service or instance container, to chall-manager, to the registry or to the web app on 127.0.0.1:3000, if `aps` cannot reach the web app, if a container on a temporary `challenge-isocheck` network can reach any platform service, or if `ops` cannot reach CTFd and the published instance ports:
 
 ```
 sudo tests/ops-isolation.sh
@@ -150,5 +150,7 @@ The Pulumi logs are in the `cm-pulumi` volume, mounted at `/var/lib/pulumi` in c
 - `ops` is not in the docker group. `/opt/challsmith` is mode 750 and `challsmith.env` is 600.
 - chall-manager mounts `docker.sock`, which is root-equivalent on the VM. The VM is meant for throwaway training use only.
 - Every published port binds to 127.0.0.1, so the services and instances are not reachable from the network.
-- The VM itself can reach the container networks, so `ops` is blocked by an nftables table `inet challsmith_ops` (`/etc/challsmith/ops-firewall.nft`, loaded at boot by `challsmith-ops-firewall.service`). It rejects all `ops` traffic into the Docker bridges (`docker0`, `br-*`, including the per-instance networks) and to the registry port 5000 on loopback. `ops` still reaches CTFd on 127.0.0.1:8000 and the instance ports, which go through Docker's root-owned port proxy. Without this, `ops` could call the unauthenticated chall-manager API and read every instance flag, read the CTFd sessions in redis, or push a scenario to the registry that chall-manager would run with `docker.sock`.
+- The VM itself can reach the container networks, so `ops` is blocked by an nftables table `inet challsmith_ops` (`/etc/challsmith/ops-firewall.nft`, loaded at boot by `challsmith-ops-firewall.service`). It rejects all `ops` traffic into the Docker bridges (`docker0`, `br-*`, including the per-instance networks) and to the registry port 5000 and the web app port 3000 on loopback. `ops` still reaches CTFd on 127.0.0.1:8000 and the instance ports, which go through Docker's root-owned port proxy. Without this, `ops` could call the unauthenticated chall-manager API and read every instance flag, read the CTFd sessions in redis, or push a scenario to the registry that chall-manager would run with `docker.sock`.
+- The firewall fails closed: `challsmith-ops-firewall.service` expires the `ops` account before loading the rules and unlocks it only after they loaded, so `ops` cannot log in if the load fails (`aps` is not affected). Docker keeps the per-instance `challenge-*` networks apart from the compose network; `tests/ops-isolation.sh` verifies it.
+- Before exporting the VM, run `scripts/cleanup.sh` as `aps` (or root). It runs the cleanup CLI in the `api` container and asks for confirmation.
 - The firewall relies on Docker's userland proxy (the default). With `"userland-proxy": false` in `daemon.json`, loopback traffic to published ports is routed into the bridges and `ops` loses CTFd too, so keep the default.

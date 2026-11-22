@@ -6,7 +6,10 @@ Before=systemd-user-sessions.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+# fail closed: ops stays locked unless the rules loaded (aps is not affected)
+ExecStartPre=/usr/bin/chage -E 0 ops
 ExecStart=/usr/sbin/nft -f /etc/challsmith/ops-firewall.nft
+ExecStartPost=/usr/bin/chage -E -1 ops
 
 [Install]
 WantedBy=multi-user.target

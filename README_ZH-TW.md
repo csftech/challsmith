@@ -121,7 +121,7 @@ tests/e2e/run.sh
 
 測試程式裡的 pip 會從 `aps` 的 Docker client 設定（`~/.docker/config.json` 的 `proxies` 區段）取得 proxy。如果在那裡設了 proxy，`noProxy` 必須包含 `localhost` 與 `127.0.0.1`，否則測試連 CTFd 的流量會被送到 proxy。
 
-`ops` 隔離檢查以 root 執行。只要 `ops` 連得到任何服務或 instance 的 container、chall-manager 或 registry，或是連不到 CTFd 與 instance 的對外 port，檢查就會失敗：
+`ops` 隔離檢查以 root 執行。只要 `ops` 連得到任何服務或 instance 的 container、chall-manager 或 registry，或是連得到 127.0.0.1:3000 的 web app，或是 `aps` 連不到 web app，或是暫時的 `challenge-isocheck` 網路上的 container 連得到任何平台服務，或是 `ops` 連不到 CTFd 與 instance 的對外 port，檢查就會失敗：
 
 ```
 sudo tests/ops-isolation.sh
@@ -150,5 +150,7 @@ Pulumi 的 log 放在 `cm-pulumi` volume，也就是 chall-manager 內的 `/var/
 - `ops` 不在 docker 群組，`/opt/challsmith` 的權限是 750，`challsmith.env` 是 600。
 - chall-manager 掛載了 `docker.sock`，等同於這台 VM 的 root 權限，所以這台 VM 只適合拿來做用完即丟的訓練。
 - 所有對外的 port 都只綁在 127.0.0.1，從網路連不到服務與 instance。
-- VM 本身連得到 container 的網路，所以用 nftables 的 `inet challsmith_ops` 表擋住 `ops`（`/etc/challsmith/ops-firewall.nft`，開機時由 `challsmith-ops-firewall.service` 載入）。它拒絕 `ops` 送進 Docker bridge（`docker0`、`br-*`，包含每個 instance 專屬的 network）的所有流量，以及送往 loopback 上 registry port 5000 的流量。`ops` 仍然連得到 127.0.0.1:8000 的 CTFd 與 instance 的 port，因為這些連線經過 Docker 以 root 執行的 port proxy。少了這道防火牆，`ops` 就能呼叫不需登入的 chall-manager API 讀到每個 instance 的 flag、讀取 redis 裡的 CTFd session，或是推一個 scenario 到 registry，讓 chall-manager 帶著 `docker.sock` 執行。
+- VM 本身連得到 container 的網路，所以用 nftables 的 `inet challsmith_ops` 表擋住 `ops`（`/etc/challsmith/ops-firewall.nft`，開機時由 `challsmith-ops-firewall.service` 載入）。它拒絕 `ops` 送進 Docker bridge（`docker0`、`br-*`，包含每個 instance 專屬的 network）的所有流量，以及送往 loopback 上 registry port 5000 與 web app port 3000 的流量。`ops` 仍然連得到 127.0.0.1:8000 的 CTFd 與 instance 的 port，因為這些連線經過 Docker 以 root 執行的 port proxy。少了這道防火牆，`ops` 就能呼叫不需登入的 chall-manager API 讀到每個 instance 的 flag、讀取 redis 裡的 CTFd session，或是推一個 scenario 到 registry，讓 chall-manager 帶著 `docker.sock` 執行。
+- 防火牆採失敗即關閉：`challsmith-ops-firewall.service` 先讓 `ops` 帳號過期，規則載入成功後才解鎖，所以載入失敗時 `ops` 無法登入（`aps` 不受影響）。Docker 會把每個 instance 專屬的 `challenge-*` 網路與 compose 網路隔開，`tests/ops-isolation.sh` 會驗證這點。
+- 匯出 VM 之前，以 `aps`（或 root）執行 `scripts/cleanup.sh`。它會在 `api` container 內執行清理指令並要求確認。
 - 這道防火牆要靠 Docker 預設的 userland proxy 才能運作。如果在 `daemon.json` 設了 `"userland-proxy": false`，loopback 上連往對外 port 的流量會被轉進 bridge，`ops` 連 CTFd 也會被擋，所以請維持預設值。
