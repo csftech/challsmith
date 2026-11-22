@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- 開發與測試在使用者的 Ubuntu 26.04 開發 VM 上透過 SSH 進行：`ssh -i ~/.ssh/challsmith_vm -o BatchMode=yes <user>@<dev-vm>`，連線資訊在本機 `.env`。不讀取、不印出 `.env` 的內容。Windows 端用 `tar --exclude=./.env --exclude=./.git --exclude=./.superpowers --exclude=./web/node_modules --exclude=./web/.next -cf - . | ssh ... 'mkdir -p ~/challsmith && tar -xf - -C ~/challsmith'` 同步。VM 已裝第 1 部分（`/opt/challsmith`），以 `sudo ./install.sh` 重裝即可套用變更。
+- 開發與測試在使用者的 Ubuntu 26.04 開發 VM 上透過 SSH 進行：`ssh -i ~/.ssh/challsmith_vm -o BatchMode=yes <user>@<dev-vm>`，連線資訊在本機 `.env`。不讀取、不印出 `.env` 的內容。Windows 端用 `tar --exclude=./.env --exclude=./.git --exclude=./.superpowers --exclude=./frontend/node_modules --exclude=./frontend/.next -cf - . | ssh ... 'mkdir -p ~/challsmith && tar -xf - -C ~/challsmith'` 同步。VM 已裝第 1 部分（`/opt/challsmith`），以 `sudo ./install.sh` 重裝即可套用變更。
 - 公開 repo 不可出現 VM 的 IP、帳密或任何 `.env` 內容。
 - 版本：盡可能使用彼此相容的最新 LTS 版本。有 LTS 的元件用最新的 LTS 版本；沒有 LTS 的元件，用最新的穩定版，剛發布的 `.0` 大版本也可以；其他套件用與上述版本相容的最新穩定版。所有版本都要固定確切版本號：compose 寫明 tag，`requirements.txt` 與 `package-lock.json` 鎖版。image 有 alpine 版就用 alpine 版。開工時查證並記在 ledger。以 2026-11-22 查到的狀態，預期如下：
   - Node.js：`node:26-alpine`，26 是目前的 Active LTS，最新為 26.13.1。
@@ -33,7 +33,7 @@
 - web app 只有一個管理者帳號，帳密來自 `challsmith.env` 的 `WEB_ADMIN_USER`、`WEB_ADMIN_PASSWORD`。
 - `README.md`（英文）與 `README_ZH-TW.md`（繁體中文）內容一致，兩份都要更新。
 - api 依 FastAPI 官方範本（full-stack-fastapi-template）分層，資料夾見「檔案結構」：`core/`、`models/`、`schemas/`、`repositories/`、`services/`、`clients/`、`utils/`、`api/`（`deps.py` 與 `routes/`）、`cli/`。route 只處理 HTTP（解析請求、呼叫 service、轉換錯誤成狀態碼），業務邏輯放在 `services/`，資料庫的查詢與寫入放在 `repositories/`，外部系統的呼叫放在 `clients/`，pydantic 的輸入輸出格式放在 `schemas/`，不碰資料庫與網路的工具函式放在 `utils/`。只有 repository 可以寫 SQLAlchemy 查詢（`select`、`delete`、`db.get`、`db.add` 等）。transaction 由 service 負責：repository 只做查詢、`add`、`delete` 與必要的 `flush`，不呼叫 `commit` 或 `rollback`。依賴方向只能往下：`api/` → `services/` → `repositories/` → `models/`；service 可以用 `clients/`、`schemas/`、`utils/`；`api/deps.py` 可以用 `services/` 與 `clients/`；`core/` 不依賴任何上層。
-- 跨層呼叫時引用模組，不引用函式，讓呼叫端一眼看出呼叫的是哪一層。為此檔名帶上層別後綴：`services/<名稱>_service.py`、`repositories/<名稱>_repository.py`、`clients/<名稱>_client.py`、`schemas/<名稱>_schema.py`、`utils/<名稱>_util.py`，引用時不用 `as`，例如 `from challsmith_api.services import challenge_service`，呼叫時寫 `challenge_service.put_files(...)`，不寫 `from ...challenge_service import put_files`。`api/routes/` 只由 `main.py` 引用，維持 `routes/challenges.py` 這類名稱。可以直接引用名稱的例外：models 的類別、schemas 的 pydantic 類別、`api.deps` 的 dependency、`get_settings`、`get_session`、`core.security` 的函式、`services/errors.py` 與各 client 的例外類別。同一個模組內的呼叫不受此限。各 task 內文寫的舊檔名依此對應，例如 `docker_ops` 即 `clients/docker_client.py`、`publish` 即 `services/publish_service.py`、`challenge_format` 即 `schemas/challenge_schema.py`、`archive` 即 `utils/archive_util.py`、`hashing` 即 `utils/hash_util.py`、`routers/x.py` 即 `api/routes/x.py`。
+- 跨層呼叫時引用模組，不引用函式，讓呼叫端一眼看出呼叫的是哪一層。為此檔名帶上層別後綴：`services/<名稱>_service.py`、`repositories/<名稱>_repository.py`、`clients/<名稱>_client.py`、`schemas/<名稱>_schema.py`、`utils/<名稱>_util.py`，引用時不用 `as`，例如 `from app.services import challenge_service`，呼叫時寫 `challenge_service.put_files(...)`，不寫 `from ...challenge_service import put_files`。`api/routes/` 只由 `main.py` 引用，維持 `routes/challenges.py` 這類名稱。可以直接引用名稱的例外：models 的類別、schemas 的 pydantic 類別、`api.deps` 的 dependency、`get_settings`、`get_session`、`core.security` 的函式、`services/errors.py` 與各 client 的例外類別。同一個模組內的呼叫不受此限。各 task 內文寫的舊檔名依此對應，例如 `docker_ops` 即 `clients/docker_client.py`、`publish` 即 `services/publish_service.py`、`challenge_format` 即 `schemas/challenge_schema.py`、`archive` 即 `utils/archive_util.py`、`hashing` 即 `utils/hash_util.py`、`routers/x.py` 即 `api/routes/x.py`。
 - 本專案自己計算的 hash 一律使用 BLAKE3（Python 用 `blake3` 套件），包括題目內容 hash、service hash（image tag）與 session token hash。上游提供的 checksum（安裝指令驗證 pulumi-docker 的 SHA-1 與 oras 的 SHA-256）照上游格式，不在此列。
 - commit 訊息結尾加上 `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`。
 
@@ -51,11 +51,11 @@
 
 ```
 challsmith/
-├─ api/
+├─ backend/
 │  ├─ Dockerfile                    Task 1（target runtime 與 test）
 │  ├─ requirements.txt / requirements-dev.txt
 │  ├─ alembic.ini / alembic/        Task 1（schema 版本）
-│  ├─ challsmith_api/               依 FastAPI 官方範本（full-stack-fastapi-template）分層（Task 7b 起）
+│  ├─ app/               依 FastAPI 官方範本（full-stack-fastapi-template）分層（Task 7b 起）
 │  │  ├─ main.py                    FastAPI app，掛上各 route
 │  │  ├─ core/                      config.py、db.py、security.py（token hash 與時間等底層工具）
 │  │  ├─ models/                    SQLAlchemy 資料表，一個實體一個檔案，`__init__.py` 匯出全部
@@ -68,12 +68,12 @@ challsmith/
 │  │  │  ├─ deps.py                 FastAPI dependency：require_session、get_docker_ops、get_ctfd_client 等
 │  │  │  └─ routes/                 只放 HTTP 路由：auth.py、templates.py、challenges.py、publish.py、sync.py、cleanup.py
 │  │  └─ cli/
-│  │     └─ cleanup.py              Task 8（`python -m challsmith_api.cli.cleanup`）
+│  │     └─ cleanup.py              Task 8（`python -m app.cli.cleanup`）
 │  └─ tests/
 │     ├─ run.sh                     Task 1（起一個暫時的 postgres，在 test image 跑 pytest）
 │     └─ test_*.py
 ├─ templates/                       Task 4（php、python-flask、node-nextjs、nginx-php-db、tcp）
-├─ web/                             Task 9、10（Next.js）
+├─ frontend/                             Task 9、10（Next.js）
 ├─ infra/compose.yaml               Task 1（api、app-db）、Task 9（web）
 ├─ infra/ops-firewall.nft           Task 11（擋 ops 連 3000）
 ├─ infra/challsmith-ops-firewall.service  Task 11（載入失敗時鎖住 ops）
@@ -90,7 +90,7 @@ challsmith/
 ### Task 1：api 骨架、資料庫與測試流程
 
 **Files:**
-- Create: `api/Dockerfile`、`api/requirements.txt`、`api/requirements-dev.txt`、`api/alembic.ini`、`api/alembic/env.py`、`api/alembic/versions/0001_initial.py`、`api/challsmith_api/{__init__,config,db,models,main}.py`、`api/tests/run.sh`、`api/tests/conftest.py`、`api/tests/test_health.py`
+- Create: `backend/Dockerfile`、`backend/requirements.txt`、`backend/requirements-dev.txt`、`backend/alembic.ini`、`backend/alembic/env.py`、`backend/alembic/versions/0001_initial.py`、`backend/app/{__init__,config,db,models,main}.py`、`backend/tests/run.sh`、`backend/tests/conftest.py`、`backend/tests/test_health.py`
 - Modify: `infra/compose.yaml`、`challsmith.env.example`、`install.sh`
 
 **Interfaces:**
@@ -104,26 +104,26 @@ challsmith/
     - `Setting(key str pk, value JSONB)`
     - `PublishRun(id, challenge_id FK cascade, status str, log text, created_at, finished_at)`，status 為 `running`、`succeeded`、`failed`
   - `main.app`：`GET /health` 回 `{"ok": true}`，不需要登入。
-  - `api/tests/run.sh [pytest args]`：在 VM 上以 `aps` 執行，建立暫時的 docker network 與 postgres container，build `api/Dockerfile` 的 `test` target，以 `DATABASE_URL` 指向該 postgres 跑 pytest，結束時一定移除 postgres 與 network。
+  - `backend/tests/run.sh [pytest args]`：在 VM 上以 `aps` 執行，建立暫時的 docker network 與 postgres container，build `backend/Dockerfile` 的 `test` target，以 `DATABASE_URL` 指向該 postgres 跑 pytest，結束時一定移除 postgres 與 network。
   - compose 新增兩個服務，都是 `restart: unless-stopped`，environment 都套 `*no-proxy`：
     - `app-db`：選定的 postgres alpine image，`POSTGRES_USER: challsmith`、`POSTGRES_DB: challsmith`、`POSTGRES_PASSWORD: ${APP_DB_PASSWORD}`，volume `app-db`，healthcheck 用 `pg_isready`。
-    - `api`：build `context: ..`、`dockerfile: api/Dockerfile`、`target: runtime`，proxy build args 與 `ctfd` 相同。environment 為 `Settings` 的各欄位，`DATABASE_URL` 指向 `app-db`，`CTFD_ADMIN_NAME`、`CTFD_ADMIN_PASSWORD`、`WEB_ADMIN_USER`、`WEB_ADMIN_PASSWORD` 來自 env 檔，`UPSTREAM_HTTP_PROXY: ${HTTP_PROXY:-}` 等三個。掛 `/var/run/docker.sock` 與 volume `app-data:/var/lib/challsmith`。`depends_on` `app-db`（healthy）。不發布 port。
+    - `api`：build `context: ..`、`dockerfile: backend/Dockerfile`、`target: runtime`，proxy build args 與 `ctfd` 相同。environment 為 `Settings` 的各欄位，`DATABASE_URL` 指向 `app-db`，`CTFD_ADMIN_NAME`、`CTFD_ADMIN_PASSWORD`、`WEB_ADMIN_USER`、`WEB_ADMIN_PASSWORD` 來自 env 檔，`UPSTREAM_HTTP_PROXY: ${HTTP_PROXY:-}` 等三個。掛 `/var/run/docker.sock` 與 volume `app-data:/var/lib/challsmith`。`depends_on` `app-db`（healthy）。不發布 port。
     - 新增 volumes `app-db`、`app-data`。
   - `challsmith.env.example` 新增 `WEB_ADMIN_USER=admin`、`WEB_ADMIN_PASSWORD=`（必填）、`APP_DB_PASSWORD=`（留空時自動產生），並說明 `CTFD_ADMIN_NAME` 與 `CTFD_ADMIN_PASSWORD` 也會給 web app 登入 CTFd 用，在 CTFd 改了管理者密碼要同步改這裡。
   - `install.sh`：step 1 檢查 `WEB_ADMIN_PASSWORD` 不為空，否則中止並說明；`fill APP_DB_PASSWORD`；沿用既有的 `dc up -d --build`。
   - `tests/conftest.py` 提供 `db` fixture（每個測試在乾淨的 schema 上跑，例如先 `alembic upgrade head` 再在測試後 truncate）與 `client` fixture（`TestClient(app)`）。
 
 - [ ] **Step 1：寫 `test_health.py`**：`client.get("/health")` 回 200 與 `{"ok": True}`；另一個測試確認 `alembic upgrade head` 後五張表都存在（用 `sqlalchemy.inspect`）。
-- [ ] **Step 2：寫 Dockerfile**。base 用 Global Constraints 選定的 python alpine image，`apk add git docker-cli docker-cli-buildx`，`runtime` target 以 `uvicorn challsmith_api.main:app --host 0.0.0.0 --port 8000 --workers 1` 啟動，啟動前執行 `alembic upgrade head`。`test` target 多裝 `requirements-dev.txt`（pytest、httpx）。build context 是 repo 根目錄，image 內 `COPY templates/ /app/templates/`。`--workers 1` 是因為 Task 7 的匯入預覽存在行程記憶體中。
-- [ ] **Step 3：寫 `run.sh`、models 與第一個 migration**，執行 `api/tests/run.sh`，預期 2 passed。
+- [ ] **Step 2：寫 Dockerfile**。base 用 Global Constraints 選定的 python alpine image，`apk add git docker-cli docker-cli-buildx`，`runtime` target 以 `uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1` 啟動，啟動前執行 `alembic upgrade head`。`test` target 多裝 `requirements-dev.txt`（pytest、httpx）。build context 是 repo 根目錄，image 內 `COPY templates/ /app/templates/`。`--workers 1` 是因為 Task 7 的匯入預覽存在行程記憶體中。
+- [ ] **Step 3：寫 `run.sh`、models 與第一個 migration**，執行 `backend/tests/run.sh`，預期 2 passed。
 - [ ] **Step 4：整合進 compose 與安裝指令**，在 VM 上執行 `sudo ./install.sh`，預期正常結束，`docker compose -p challsmith exec api python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').read())"` 印出 `{"ok":true}`。再執行一次 `sudo ./install.sh`，`APP_DB_PASSWORD` 不變。
 - [ ] **Step 5：commit** `feat(api): skeleton, schema, test runner and compose service`
 
 ### Task 2：題目格式、hash 與安全解壓
 
 **Files:**
-- Create: `api/challsmith_api/challenge_format.py`、`api/challsmith_api/hashing.py`、`api/challsmith_api/archive.py`
-- Test: `api/tests/test_challenge_format.py`、`api/tests/test_hashing.py`、`api/tests/test_archive.py`
+- Create: `backend/app/challenge_format.py`、`backend/app/hashing.py`、`backend/app/archive.py`
+- Test: `backend/tests/test_challenge_format.py`、`backend/tests/test_hashing.py`、`backend/tests/test_archive.py`
 
 **Interfaces:**
 - Produces:
@@ -148,7 +148,7 @@ challsmith/
   - `test_hash_ignores_yaml_formatting`：同一份 meta 以不同縮排與欄位順序寫成的兩份 `challenge.yml`，經 `from_folder` 後 hash 相同。
   - `test_extract_rejects`：參數化，含 `../evil` 成員的 zip、含絕對路徑的 tar、含 symlink 的 tar、解壓後超過 100 MiB 的 zip（用高壓縮率的零位元組檔案製造）都 raise `ValueError`。
   - `test_make_tar_gz_roundtrip`：`extract_tar_gz(make_tar_gz(x))` 等於加上 `challenges/<slug>/` 前綴的 `x`。
-- [ ] **Step 2：執行 `api/tests/run.sh tests/test_challenge_format.py tests/test_hashing.py tests/test_archive.py`**，預期因為模組不存在而失敗。
+- [ ] **Step 2：執行 `backend/tests/run.sh tests/test_challenge_format.py tests/test_hashing.py tests/test_archive.py`**，預期因為模組不存在而失敗。
 - [ ] **Step 3：實作三個模組**。解壓時先檢查完所有成員，再一次回傳結果，避免只解出一半。
 - [ ] **Step 4：重跑**，預期全部通過。
 - [ ] **Step 5：commit** `feat(api): challenge folder format, content hash and safe archive extraction`
@@ -156,9 +156,9 @@ challsmith/
 ### Task 3：登入與 session
 
 **Files:**
-- Create: `api/challsmith_api/auth.py`
-- Modify: `api/challsmith_api/main.py`
-- Test: `api/tests/test_auth.py`
+- Create: `backend/app/auth.py`
+- Modify: `backend/app/main.py`
+- Test: `backend/tests/test_auth.py`
 
 **Interfaces:**
 - Produces:
@@ -177,9 +177,9 @@ challsmith/
 ### Task 4：範本
 
 **Files:**
-- Create: `templates/{php,python-flask,node-nextjs,nginx-php-db,tcp}/template.yml` 與各自的檔案、`api/challsmith_api/templates.py`、`tests/templates-smoke.sh`
-- Modify: `api/challsmith_api/main.py`
-- Test: `api/tests/test_templates.py`
+- Create: `templates/{php,python-flask,node-nextjs,nginx-php-db,tcp}/template.yml` 與各自的檔案、`backend/app/templates.py`、`tests/templates-smoke.sh`
+- Modify: `backend/app/main.py`
+- Test: `backend/tests/test_templates.py`
 
 **Interfaces:**
 - Consumes: `ChallengeMeta`、`ServiceSpec`、`safe_relpath`（Task 2）。
@@ -208,9 +208,9 @@ challsmith/
 ### Task 5：題目 CRUD、檔案與上傳
 
 **Files:**
-- Create: `api/challsmith_api/challenges.py`
-- Modify: `api/challsmith_api/main.py`
-- Test: `api/tests/test_challenges.py`
+- Create: `backend/app/challenges.py`
+- Modify: `backend/app/main.py`
+- Test: `backend/tests/test_challenges.py`
 
 **Interfaces:**
 - Consumes: Task 2 的格式與 hash、Task 3 的 `require_session`、Task 4 的 `instantiate`。
@@ -240,7 +240,7 @@ challsmith/
 
 **Files:**
 - Move：`config.py`、`db.py` → `core/`；`models.py` → `models/`（`base.py` 放 `Base` 與共用欄位 helper，`challenge.py` 放 `Challenge` 與 `ChallengeFile`，`web_session.py`、`setting.py`、`publish_run.py` 各放一個，`__init__.py` 匯出全部）；`challenge_format.py`、`archive.py`、`hashing.py` → `formats/`（`challenge_format.py` 改名為 `formats/challenge.py`）；`templates.py` → `services/templates.py`；`routes_templates.py` → `routers/templates.py`；`auth.py` 拆成 `services/auth.py`（token hash、建立與驗證 session、`clear_sessions`）、`core/deps.py`（`require_session`）與 `routers/auth.py`（`/auth/*` 路由）；`challenges.py` 拆成 `services/challenges.py`（`load_challenge`、`save_challenge`、`current_hash`、`status_of`、`delete_challenge` 與其他不碰 HTTP 的邏輯）與 `routers/challenges.py`。
-- Modify：`main.py`、`alembic/env.py`、`api/tests/*.py` 的 import。
+- Modify：`main.py`、`alembic/env.py`、`backend/tests/*.py` 的 import。
 
 **Interfaces:**
 - Produces：上面的新位置。舊的平面模組全部刪除，不留相容用的轉接模組。services 層的函式在找不到資料時 raise 自己的例外（例如 `NotFound`、`Conflict`），由 router 轉成 HTTP 狀態碼。既有測試會呼叫這些函式，如果它們目前直接 raise `HTTPException`，就維持現在的行為，只在 report 裡註明。
@@ -254,9 +254,9 @@ challsmith/
 ### Task 6：發佈
 
 **Files:**
-- Create: `api/challsmith_api/clients/docker.py`、`api/challsmith_api/clients/ctfd.py`、`api/challsmith_api/services/publish.py`、`api/challsmith_api/routers/publish.py`
-- Modify: `api/challsmith_api/services/challenges.py`（`delete_challenge` 補上刪除 CTFd 題目）、`api/challsmith_api/main.py`
-- Test: `api/tests/test_publish.py`、`api/tests/test_ctfd.py`
+- Create: `backend/app/clients/docker.py`、`backend/app/clients/ctfd.py`、`backend/app/services/publish.py`、`backend/app/routers/publish.py`
+- Modify: `backend/app/services/challenges.py`（`delete_challenge` 補上刪除 CTFd 題目）、`backend/app/main.py`
+- Test: `backend/tests/test_publish.py`、`backend/tests/test_ctfd.py`
 
 **Interfaces:**
 - Consumes: `load_challenge`、`current_hash`、`service_hash`。
@@ -303,7 +303,7 @@ challsmith/
 使用者在 Task 6 進行中要求加上 repository 層（router、service、repository、model）。這個 task 只搬移資料庫存取的程式碼，不改行為。
 
 **Files:**
-- Create：`api/challsmith_api/repositories/__init__.py`、`challenge_repository.py`（`Challenge` 與 `ChallengeFile`）、`web_session_repository.py`、`setting_repository.py`（Task 7 會用到，這裡先放 `get(db, key)` 與 `put(db, key, value)`）、`publish_run_repository.py`
+- Create：`backend/app/repositories/__init__.py`、`challenge_repository.py`（`Challenge` 與 `ChallengeFile`）、`web_session_repository.py`、`setting_repository.py`（Task 7 會用到，這裡先放 `get(db, key)` 與 `put(db, key, value)`）、`publish_run_repository.py`
 - Modify：`services/` 底下所有直接寫 SQLAlchemy 查詢的地方、`main.py` 的 lifespan（如果它直接查 `PublishRun`）、`core/deps.py`（`require_session` 改用 `web_session_repository`，`core` 依賴 `repositories` 是往下，可以）
 
 **Interfaces:**
@@ -319,9 +319,9 @@ challsmith/
 ### Task 7：git 與備份壓縮檔
 
 **Files:**
-- Create: `api/challsmith_api/clients/git.py`、`api/challsmith_api/services/sync.py`、`api/challsmith_api/routers/sync.py`；資料庫存取放在 `repositories/`（例如 git 設定用 `setting_repository`）
-- Modify: `api/challsmith_api/main.py`
-- Test: `api/tests/test_sync.py`、`api/tests/test_gitrepo.py`
+- Create: `backend/app/clients/git.py`、`backend/app/services/sync.py`、`backend/app/routers/sync.py`；資料庫存取放在 `repositories/`（例如 git 設定用 `setting_repository`）
+- Modify: `backend/app/main.py`
+- Test: `backend/tests/test_sync.py`、`backend/tests/test_gitrepo.py`
 
 **Interfaces:**
 - Consumes: `load_challenge`、`save_challenge`、`current_hash`、`content_hash`、`to_folder`、`from_folder`、`make_tar_gz`、`extract_tar_gz`。
@@ -363,15 +363,16 @@ challsmith/
 
 ### Task 7b：依官方範本調整資料夾
 
-使用者在 Task 7 進行中決定：依 FastAPI 官方範本調整資料夾。這個 task 只搬移與改 import，不改行為。
+使用者在 Task 7 進行中決定：依 FastAPI 官方範本調整資料夾，頂層也改成 `backend/app/` 與 `frontend/`。這個 task 只搬移與改 import，不改行為。
 
 **Files（全部用 `git mv`）：**
+- 頂層照官方範本：`api/` → `backend/`，套件 `challsmith_api/` → `backend/app/`（import 改成 `from app.services import ...`），之後 Task 9 的 Next.js 放在 `frontend/`。compose 的服務名稱 `api`、`web`、`app-db` 不變，只改 build 路徑（`context`、`dockerfile`）。一併修改 `alembic.ini`、`alembic/env.py`、Dockerfile 的 `COPY` 與 uvicorn 模組路徑（`app.main:app`）、`backend/tests/run.sh`、`install.sh` 與 `.gitignore` 裡提到舊路徑的地方
 - `routers/` → `api/routes/`（檔名不變），`core/deps.py` → `api/deps.py`
 - `formats/challenge_format.py` → `schemas/challenge_schema.py`
 - `formats/archive_format.py` → `utils/archive_util.py`，`formats/hashing_format.py` → `utils/hash_util.py`，刪除 `formats/`
 - route 檔案裡定義的 pydantic request/response class（例如 `LoginBody`、建題與匯入的 body）移到 `schemas/` 對應的 `<名稱>_schema.py`
 - `core/security.py`、`clients/`、`services/`、`repositories/`、`models/` 不動
-- Modify：`main.py`、所有 import、`api/tests/*.py` 的 import 與 monkeypatch 路徑
+- Modify：`main.py`、所有 import、`backend/tests/*.py` 的 import 與 monkeypatch 路徑
 
 **Interfaces:**
 - Produces：上面的新位置，不留相容用的轉接模組，不改 HTTP 行為、資料表與測試斷言。
@@ -384,9 +385,9 @@ challsmith/
 ### Task 8：發佈前清理
 
 **Files:**
-- Create: `api/challsmith_api/clients/chall_manager_client.py`、`api/challsmith_api/services/cleanup_service.py`、`api/challsmith_api/api/routes/cleanup.py`、`api/challsmith_api/cli/cleanup.py`
-- Modify: `api/challsmith_api/main.py`
-- Test: `api/tests/test_cleanup.py`
+- Create: `backend/app/clients/chall_manager_client.py`、`backend/app/services/cleanup_service.py`、`backend/app/api/routes/cleanup.py`、`backend/app/cli/cleanup.py`
+- Modify: `backend/app/main.py`
+- Test: `backend/tests/test_cleanup.py`
 
 **Interfaces:**
 - Consumes: `CtfdClient.list_users`、`delete_user`（Task 6）、`DockerOps.remove_containers`、`remove_networks`（Task 6）、`clear_sessions`（Task 3）。
@@ -400,7 +401,7 @@ challsmith/
     3. `clear_sessions`
     回傳 `{"instances": n, "containers": n, "networks": n, "users": n, "sessions": n}`。某一步失敗時停止並 raise，已完成的步驟照實回報在 log。不刪除題目、image 或 web app 的其他資料。
   - `POST /cleanup` body `{"confirm": "CLEANUP"}`，`confirm` 不是這個字串時回 400。成功後因為 session 已清空，前端要導回登入頁。
-  - 命令列：`python -m challsmith_api.cli.cleanup [--yes]`。沒有 `--yes` 時，先印出會做的事，要求輸入 `CLEANUP` 才執行，結果印在 stdout，失敗時以非 0 結束。
+  - 命令列：`python -m app.cli.cleanup [--yes]`。沒有 `--yes` 時，先印出會做的事，要求輸入 `CLEANUP` 才執行，結果印在 stdout，失敗時以非 0 結束。
 
 - [ ] **Step 1：寫失敗的測試**：用 fake 的 `ChallManager`、`CtfdClient` 與 `DockerOps`，三個 instance 都被刪除；使用者清單裡的 admin 沒被刪、兩位一般使用者被刪；session 表被清空，但 `Challenge` 與 `ChallengeFile` 的筆數不變；`confirm` 錯誤時回 400 且所有 fake 都沒被呼叫；`list_instances` 用 `MockTransport` 回兩行 stream JSON 時解析出兩筆；`delete_instance` 收到 404 不 raise。
 - [ ] **Step 2：執行測試，預期失敗。**
@@ -412,7 +413,7 @@ challsmith/
 
 **Files:**
 - Modify: `infra/compose.yaml`、`install.sh`（完成訊息加上 `Web app: http://127.0.0.1:3000`）
-- Create: `web/`（`package.json`、`package-lock.json`、`next.config.ts`、`tsconfig.json`、`Dockerfile`、`middleware.ts`、`app/api/[...path]/route.ts`、`app/api/login/route.ts`、`app/api/logout/route.ts`、`app/login/page.tsx`、`app/page.tsx`（題目清單）、`app/new/page.tsx`、`app/c/[slug]/page.tsx`（編輯）、`lib/api.ts`）
+- Create: `frontend/`（`package.json`、`package-lock.json`、`next.config.ts`、`tsconfig.json`、`Dockerfile`、`middleware.ts`、`app/api/[...path]/route.ts`、`app/api/login/route.ts`、`app/api/logout/route.ts`、`app/login/page.tsx`、`app/page.tsx`（題目清單）、`app/new/page.tsx`、`app/c/[slug]/page.tsx`（編輯）、`lib/api.ts`）
 
 **Interfaces:**
 - Consumes: Task 3、4、5 的 API。
@@ -427,8 +428,8 @@ challsmith/
     - 新增頁：選範本（顯示 `description`）、填 slug 與標題，建立後進入編輯頁。
     - 編輯頁：左邊是題目資訊表單（`ChallengeMeta` 的所有欄位，描述是 Markdown 文字框，tags 用逗號分隔，services 可新增、刪除，image 型的 service 只填 image 與 env），右邊是檔案樹與 CodeMirror 編輯器（依副檔名套用語法，至少涵蓋 php、python、javascript、html、css、yaml、Dockerfile 與 nginx 設定的純文字），可新增檔案、刪除檔案、上傳單一檔案或 zip 到選定的 service 資料夾。儲存失敗時顯示 api 的錯誤訊息。
   - CodeMirror 與所有前端套件都打包在 image 裡，不從 CDN 載入，因為公司內的 vmdk 是離線的。
-  - Dockerfile：多階段，`npm ci` 與 `next build` 使用 `output: "standalone"`，runtime 以非 root 使用者執行 `node server.js`，監聽 `0.0.0.0:3000`，build context 是 `web/`。
-  - compose 新增 `web`：build `context: ../web`，proxy build args 與 `ctfd` 相同，`restart: unless-stopped`，environment 套 `*no-proxy` 並加 `API_URL: http://api:8000`，`ports: 127.0.0.1:3000:3000`，`depends_on: api`。
+  - Dockerfile：多階段，`npm ci` 與 `next build` 使用 `output: "standalone"`，runtime 以非 root 使用者執行 `node server.js`，監聽 `0.0.0.0:3000`，build context 是 `frontend/`。
+  - compose 新增 `web`：build `context: ../frontend`，proxy build args 與 `ctfd` 相同，`restart: unless-stopped`，environment 套 `*no-proxy` 並加 `API_URL: http://api:8000`，`ports: 127.0.0.1:3000:3000`，`depends_on: api`。
 
 - [ ] **Step 1：在 VM 上以 `docker build web/` 確認可以 build**，並在 build 中執行 `npm run lint`（若 Next.js 版本不內建 lint，就執行 `tsc --noEmit`）。預期 build 成功、沒有型別錯誤。
 - [ ] **Step 2：手動冒煙**：在 VM 上執行 `sudo ./install.sh`，確認不帶 cookie 的 `curl http://127.0.0.1:3000/` 回 307 或 308，再用 `curl` 走一遍：不帶 cookie 的 `GET /` 被導到 `/login`；`POST /api/login` 拿到 `Set-Cookie`；帶 cookie 的 `GET /api/challenges` 回 200；`Origin: http://evil.example` 的 `POST /api/challenges` 回 403。把結果記在 report。完整的自動化檢查在 Task 12。
@@ -437,8 +438,8 @@ challsmith/
 ### Task 10：web 的發佈、同步與清理頁面
 
 **Files:**
-- Create: `web/app/c/[slug]/publish/page.tsx`（或編輯頁內的區塊）、`web/app/sync/page.tsx`、`web/app/cleanup/page.tsx`
-- Modify: `web/app/page.tsx`（導覽列）
+- Create: `frontend/app/c/[slug]/publish/page.tsx`（或編輯頁內的區塊）、`frontend/app/sync/page.tsx`、`frontend/app/cleanup/page.tsx`
+- Modify: `frontend/app/page.tsx`（導覽列）
 
 **Interfaces:**
 - Consumes: Task 6、7、8 的 API。
@@ -463,7 +464,7 @@ challsmith/
 
 **Interfaces:**
 - Produces：
-  - `scripts/cleanup.sh`：以 `aps` 執行 `docker compose -p challsmith exec api python -m challsmith_api.cli.cleanup "$@"`，供匯出 vmdk 前使用，需要互動確認時要配置 tty（不帶 `-T`）。
+  - `scripts/cleanup.sh`：以 `aps` 執行 `docker compose -p challsmith exec api python -m app.cli.cleanup "$@"`，供匯出 vmdk 前使用，需要互動確認時要配置 tty（不帶 `-T`）。
   - `infra/ops-firewall.nft` 新增一條：`meta skuid "ops" ip daddr 127.0.0.0/8 tcp dport 3000 reject with tcp reset`，註解說明新人用不到 web app，擋掉可以避免對登入頁暴力猜測。
   - `infra/challsmith-ops-firewall.service`（處理第 1 部分暫緩的「防火牆載入失敗時放行」）：`ExecStartPre=/usr/bin/chage -E 0 ops` 先鎖住 `ops`，`ExecStart` 載入 nft，`ExecStartPost=/usr/bin/chage -E -1 ops` 只在載入成功後解鎖。載入失敗時 `ops` 無法登入，`aps` 不受影響。
   - `tests/ops-isolation.sh` 新增：
