@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_engine
 from app.api.deps import require_session
-from app.api.routes import auth, challenges, publish, sync, templates
+from app.api.routes import auth, challenges, cleanup, publish, sync, templates
 from app.services import publish_service
 from app.services.errors import DomainError
 
@@ -34,6 +34,7 @@ app.include_router(templates.router, dependencies=[Depends(require_session)])
 app.include_router(challenges.router, dependencies=[Depends(require_session)])
 app.include_router(publish.router, dependencies=[Depends(require_session)])
 app.include_router(sync.router, dependencies=[Depends(require_session)])
+app.include_router(cleanup.router, dependencies=[Depends(require_session)])
 
 
 @app.get("/health")

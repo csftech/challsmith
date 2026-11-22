@@ -1,7 +1,7 @@
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
-from app.clients import ctfd_client, docker_client
+from app.clients import chall_manager_client, ctfd_client, docker_client
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.models import WebSession
@@ -33,3 +33,11 @@ def get_docker_ops() -> docker_client.DockerOps:
 def get_ctfd_client() -> ctfd_client.CtfdClient:
     s = get_settings()
     return ctfd_client.CtfdClient(s.ctfd_url, s.ctfd_admin_name, s.ctfd_admin_password)
+
+
+def get_chall_manager():
+    cm = chall_manager_client.ChallManager(get_settings().chall_manager_url)
+    try:
+        yield cm
+    finally:
+        cm.close()
