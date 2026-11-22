@@ -85,7 +85,7 @@ func TestSingleCreatesLockedDownContainer(t *testing.T) {
 	assert.Equal(t, 80.0, port["internal"].NumberValue())
 	found := false
 	for _, e := range in["envs"].ArrayValue() {
-		found = found || strings.HasPrefix(e.StringValue(), "FLAG=CTF{")
+		found = found || strings.HasPrefix(e.StringValue(), "FLAG=APS{")
 	}
 	assert.True(t, found)
 	assert.Equal(t, 256.0, in["memory"].NumberValue())

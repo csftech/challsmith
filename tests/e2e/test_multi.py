@@ -18,6 +18,6 @@ def test_multi_container_flag_through_db(admin, register_user, create_challenge)
                            {"services": json.dumps(SERVICES), "flag": "hello_multi",
                             "memory": "512m"})
     user = register_user("dave")
-    body = get_until(start_instance(user, cid) + "/", "CTF{", timeout=60)
-    flag = re.search(r"CTF\{[^}]*\}", body).group(0)
+    body = get_until(start_instance(user, cid) + "/", "APS{", timeout=60)
+    flag = re.search(r"APS\{[^}]*\}", body).group(0)
     assert submit(user, cid, flag) == "correct"

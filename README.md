@@ -4,7 +4,7 @@
 
 challsmith is a CTFd training environment that runs on one Ubuntu 26.04 VM. It is installed once, exported as a vmdk and handed to new hires, who solve web challenges in their own copy. CTFd runs with the ctfd-chall-manager plugin, and every challenge instance is started on demand by chall-manager as Docker containers. Each instance gets its own dynamic flag.
 
-Only the infrastructure and the two generic scenarios exist so far. The web app for authors is planned, so challenges are created by hand in the CTFd admin UI (see "Create a challenge manually").
+Authors build challenges in a web app on `http://127.0.0.1:3000`: pick a template, edit the files and publish, and the app builds the images and creates the CTFd challenge (see "Authoring challenges"). Challenges can still be created by hand in the CTFd admin UI (see "Create a challenge manually").
 
 ## Architecture
 
@@ -13,12 +13,16 @@ Ubuntu 26.04 VM
 ├─ ops (trainee) ── browser ──> CTFd 127.0.0.1:8000 ──> challenge instance 127.0.0.1:<random port>
 │                          └──> Burp Suite Community
 └─ aps (docker group)
+   │  (authors) browser ──> web app 127.0.0.1:3000 ──> api ──> CTFd, registry, docker
    └─ docker compose project "challsmith" (restart: unless-stopped)
       ├─ ctfd                  CTFd 3.8.9 + ctfd-chall-manager plugin v0.10.1, 127.0.0.1:8000
       ├─ ctfd-db / ctfd-redis  mariadb 11.8 / redis 8.10-alpine
       ├─ ctfd-setup            one-shot, creates the CTFd admin and plugin settings
       ├─ chall-manager         v0.6.7, mounts /var/run/docker.sock, no published port
       ├─ chall-manager-janitor removes expired instances every minute
+      ├─ web                   authoring web app (Next.js 16), 127.0.0.1:3000, the only way to api
+      ├─ api                   FastAPI backend, mounts /var/run/docker.sock, no published port
+      ├─ app-db                postgres 19-alpine, challenges, sessions and settings of the web app
       └─ registry              registry 3.1, 127.0.0.1:5000, challenge images and scenarios
 ```
 
@@ -33,10 +37,12 @@ The two scenarios are written in Go (Go 1.27, pulumi-docker v5.3.0) and are buil
 
 You need an Ubuntu 26.04 Desktop VM with internet access, directly or through the company proxies.
 
-1. Copy the repository to the VM, then `cp challsmith.env.example challsmith.env` and edit it. The admin name, email and password are required. `CTFD_SECRET_KEY` and `CTFD_DB_PASSWORD` are generated when left empty. `CM_MANA_TOTAL` is the per-user mana limit (default 5).
+1. Copy the repository to the VM, then `cp challsmith.env.example challsmith.env` and edit it. The CTFd admin name, email and password are required, and so is `WEB_ADMIN_PASSWORD`, the password of the web app (`WEB_ADMIN_USER` is its user name, default `admin`). `CTFD_SECRET_KEY`, `CTFD_DB_PASSWORD` and `APP_DB_PASSWORD` (the web app's PostgreSQL) are generated when left empty. The web app signs in to CTFd with the CTFd admin account. `CM_MANA_TOTAL` is the per-user mana limit (default 5).
 2. Run `sudo ./install.sh`. It is safe to re-run. It installs Docker, writes the Docker daemon proxy settings, creates the users `aps` (docker group) and `ops` (an existing `ops` is removed from the docker, sudo, adm and lxd groups), installs the `ops` firewall, copies the repository to `/opt/challsmith`, starts the compose project, builds and pushes the scenarios, and installs Burp Suite Community.
 3. Set the passwords: `sudo passwd aps` and `sudo passwd ops`.
-4. Open `http://127.0.0.1:8000` and log in with the admin account from `challsmith.env`.
+4. Open `http://127.0.0.1:8000` and log in to CTFd with the admin account from `challsmith.env`. The web app is at `http://127.0.0.1:3000`, with `WEB_ADMIN_USER` and `WEB_ADMIN_PASSWORD`.
+
+If you change the CTFd admin password in CTFd, change `CTFD_ADMIN_PASSWORD` in `challsmith.env` too and rerun `sudo ./install.sh`, otherwise the web app can no longer reach CTFd. Installs from before the web app left a stale `/opt/challsmith/api` directory; the installer does not delete it, so you can remove it by hand.
 
 ### Company network
 
@@ -61,6 +67,57 @@ The plugin version is read from `scenarios/go.mod` (pulumi-docker v5.3.0), and a
 
 The php-fpm base images that need PECL extensions are not built here, because the company has no PECL proxy. Build them outside and pull them through the Docker Hub proxy.
 
+## Authoring challenges
+
+Open `http://127.0.0.1:3000` in the VM's browser and log in with `WEB_ADMIN_USER` and `WEB_ADMIN_PASSWORD`.
+
+1. Create: choose a slug (lowercase letters, digits and `-`, at most 48 characters), a name and a template. The app creates the challenge with the template's files.
+2. Edit: change the settings (category, tags, description, points, flag, protocol, resource limits, services) and the files. Files live under `services/<service>/`, and a service without an `image` is built from its `Dockerfile`. You can edit a file in the browser, or upload a file or a `.zip` into a service folder. A file with mixed or lone-CR line endings, or one that is not UTF-8, is read-only in the editor; edit it by uploading a replacement.
+3. Publish: the app builds the service images, pushes them to `localhost:5000` and creates the CTFd challenge, or updates the same one if it was published before. A service that uses an official image (for example `mariadb:11.8`) is copied to `localhost:5000/challsmith/mirror/<name>:<tag>`.
+   Publishing writes the build-context files as `0644` and directories as `0755`, so run scripts with `sh script` or `chmod +x` them in the `Dockerfile`.
+4. Read the publish log, which shows the docker output. If a build or push fails, publishing stops there, CTFd is not touched and the published version stays as it was.
+
+A challenge is `draft` (never published), `modified` (changed since the last publish) or `published`. Deleting a challenge also deletes its CTFd challenge and instances. Publishing a challenge whose CTFd challenge was deleted by hand creates a new one. Every instance gets its flag in the `FLAG` environment variable, see "How the image reads the flag".
+
+### Templates
+
+| Template | Scenario | Contents |
+|---|---|---|
+| `php` | single | PHP 8.6 built-in web server, one container |
+| `nginx-php-db` | multi | nginx, PHP-FPM and MariaDB, three containers |
+| `python-flask` | single | Python 3.15 and Flask web app, one container |
+| `node-nextjs` | single | Next.js 16 App Router app on Node.js 26, one container |
+| `tcp` | single | TCP service served by socat, one container, category Pwn |
+
+## Git and backup
+
+Both are on the Sync page of the web app.
+
+- Settings: the remote URL (`https://`, `http://`, `file://` or a local path), user name, access token, branch (default `main`) and the directory in the repository (default `challenges`). The token is stored in the web app's database and the api never returns it. git runs through the company proxy from `challsmith.env`.
+- Export to git: commits every challenge as `<directory>/<slug>/` and pushes. The comparison base of each challenge (the state at the last sync) moves only when the push succeeded, or when there was nothing to commit. If the push fails, or you export without pushing, the base stays, so a later import cannot let the old copy in git silently overwrite your changes.
+- Import: run a preview first, from the git repository or from an uploaded backup archive. Each challenge gets one of five states, from the database, the source and the base:
+
+| State | Meaning | Apply does |
+|---|---|---|
+| `new` | Only in the source | Creates it |
+| `unchanged` | Same in both | Moves the base (git only) |
+| `source_changed` | Only the source changed | Overwrites the database |
+| `db_changed` | Only the database changed | Nothing |
+| `conflict` | Both changed | You choose `source` or `db` for each one, and apply is refused until you do |
+
+  A challenge that fails validation is shown as `invalid` and skipped. Apply refuses if a challenge changed after the preview.
+- Download backup: a `.tar.gz` of all challenges. It does not move the comparison base, because the file may never be imported anywhere. Importing a backup does not move it either: the base follows git only (git export and git import), so a backup can carry content older than the base, and moving the base to it would let a later git import overwrite newer content without asking. Applying a backup writes the content you chose and leaves the base as it was.
+
+## Cleanup before release
+
+Before exporting the VM for trainees, open the Cleanup page of the web app and type `CLEANUP`, or run `scripts/cleanup.sh` as `aps` (or root), which asks for the same confirmation. It deletes:
+
+- every chall-manager instance, and leftover `challenge-*` containers and networks;
+- every CTFd user that is not an admin;
+- every web app session, so you are logged out.
+
+It keeps the challenges, the images in the registry, the git settings and the CTFd admin account.
+
 ## Create a challenge manually
 
 1. Build the challenge image and push it to the local registry, for example `docker build -t localhost:5000/challsmith/my-chall:v1 .` and `docker push localhost:5000/challsmith/my-chall:v1`. Run these as `aps` (or another docker group user). The `examples/` directory has working challenges.
@@ -71,7 +128,7 @@ The php-fpm base images that need PECL extensions are not built here, because th
 
 ### How the image reads the flag
 
-Every container gets the environment variable `FLAG`, for example `CTF{php_strcmp_array_...}`. The image must not contain the flag. Its entrypoint or code reads `FLAG` at start, for example writing it to `/flag.txt` or into a database. In a multi challenge every service receives `FLAG`, and a `FLAG` set in the `env` of a service is overridden. The flag differs per instance, including after the same trainee deletes and reopens an instance.
+Every container gets the environment variable `FLAG`, for example `APS{php_strcmp_array_3f9a1c07e2b84d65}`: the template body, an underscore and the instance identity (chall-manager's 64-bit random value). Two instances practically never get the same flag, however short the template is, the flag stays the same while the instance lives, and an admin can tell from a submitted flag which instance it belongs to. The image must not contain the flag. Its entrypoint or code reads `FLAG` at start, for example writing it to `/flag.txt` or into a database. In a multi challenge every service receives `FLAG`, and a `FLAG` set in the `env` of a service is overridden. The flag differs per instance, including after the same trainee deletes and reopens an instance.
 
 ### Keys for single
 
@@ -81,7 +138,7 @@ Every container gets the environment variable `FLAG`, for example `CTF{php_strcm
 | `flag` | Flag template body, for example `php_strcmp_array` | required |
 | `port` | Service port inside the container (1-65535) | `80` |
 | `protocol` | `http` gives `http://localhost:<port>`, `tcp` gives `nc localhost <port>` | `http` |
-| `flag_prefix` | Outer flag format, giving `CTF{...}` | `CTF` |
+| `flag_prefix` | Outer flag format, giving `APS{...}` | `APS` |
 | `memory` | Memory limit, an integer with suffix `m` or `g`, for example `256m`, `1g` | `256m` |
 | `cpus` | CPU limit, a number greater than 0 | `0.5` |
 
@@ -113,7 +170,7 @@ Unit tests for the scenarios, run in the same container image the build uses:
 docker run --rm -v "$PWD/scenarios:/src" -w /src golang:1.27-alpine go test ./...
 ```
 
-End-to-end tests run on the installed VM as `aps`. They build and push the images in `examples/`, then create instances through the CTFd API:
+End-to-end tests run on the installed VM as `aps`. They build and push the images in `examples/`, create instances through the CTFd API, and drive the web app on port 3000 (create, edit, publish, republish, a failing build, login and Origin checks, backup and import preview). The runner reads `WEB_ADMIN_USER` and `WEB_ADMIN_PASSWORD` from `challsmith.env`. The cleanup test deletes every trainee and web session, so it runs last in its own pytest, and the runner then checks that no `challenge-*` container is left:
 
 ```
 tests/e2e/run.sh
@@ -121,7 +178,7 @@ tests/e2e/run.sh
 
 The runner's pip gets its proxy from the `proxies` section of the Docker client config (`~/.docker/config.json`) of `aps`. If you set one there, its `noProxy` must include `localhost` and `127.0.0.1`, otherwise the tests send CTFd traffic to the proxy.
 
-The `ops` isolation check runs as root. It fails if `ops` can connect to any service or instance container, to chall-manager or to the registry, or cannot reach CTFd and the published instance ports:
+The `ops` isolation check runs as root. It fails if `ops` can connect to any service or instance container, to chall-manager, to the registry or to the web app on 127.0.0.1:3000, if `aps` cannot reach the web app, if a container on a temporary `challenge-isocheck` network can reach any platform service, or if `ops` cannot reach CTFd and the published instance ports:
 
 ```
 sudo tests/ops-isolation.sh
@@ -132,6 +189,9 @@ sudo tests/ops-isolation.sh
 1. After a VM reboot the instance containers come back, but Docker may assign a new host port (observed 32776 to 32768). CTFd still shows the old connection URL, so the trainee must delete the instance and open a new one.
 2. php single-container challenges use `php -S`, which is single-threaded. That is fine for one trainee per VM.
 3. Anyone with the vmdk can get root. Dynamic flags only stop trainees from copying each other's flags. The writeup and the oral check are the real control.
+4. An import preview is kept in the api's memory for 30 minutes, so after the api restarts you must run the preview again.
+5. The web app answers only to the Host names in `WEB_ALLOWED_HOSTS` (default `localhost:3000,127.0.0.1:3000`), which stops DNS rebinding. If you reach the VM by another name, add it in `challsmith.env` (comma separated); any other Host gets 421.
+6. The web app has one account, and it signs in to CTFd with the CTFd admin account, so the two passwords must be kept in step.
 
 ## Troubleshooting
 
@@ -150,5 +210,9 @@ The Pulumi logs are in the `cm-pulumi` volume, mounted at `/var/lib/pulumi` in c
 - `ops` is not in the docker group. `/opt/challsmith` is mode 750 and `challsmith.env` is 600.
 - chall-manager mounts `docker.sock`, which is root-equivalent on the VM. The VM is meant for throwaway training use only.
 - Every published port binds to 127.0.0.1, so the services and instances are not reachable from the network.
-- The VM itself can reach the container networks, so `ops` is blocked by an nftables table `inet challsmith_ops` (`/etc/challsmith/ops-firewall.nft`, loaded at boot by `challsmith-ops-firewall.service`). It rejects all `ops` traffic into the Docker bridges (`docker0`, `br-*`, including the per-instance networks) and to the registry port 5000 on loopback. `ops` still reaches CTFd on 127.0.0.1:8000 and the instance ports, which go through Docker's root-owned port proxy. Without this, `ops` could call the unauthenticated chall-manager API and read every instance flag, read the CTFd sessions in redis, or push a scenario to the registry that chall-manager would run with `docker.sock`.
+- The VM itself can reach the container networks, so `ops` is blocked by an nftables table `inet challsmith_ops` (`/etc/challsmith/ops-firewall.nft`, loaded at boot by `challsmith-ops-firewall.service`). It rejects all `ops` traffic into the Docker bridges (`docker0`, `br-*`, including the per-instance networks) and to the registry port 5000 and the web app port 3000 on loopback. `ops` still reaches CTFd on 127.0.0.1:8000 and the instance ports, which go through Docker's root-owned port proxy. Without this, `ops` could call the unauthenticated chall-manager API and read every instance flag, read the CTFd sessions in redis, or push a scenario to the registry that chall-manager would run with `docker.sock`.
+- The firewall fails closed: `challsmith-ops-firewall.service` expires the `ops` account before loading the rules and unlocks it only after they loaded, so `ops` cannot log in if the load fails (`aps` is not affected). Docker keeps the per-instance `challenge-*` networks apart from the compose network; `tests/ops-isolation.sh` verifies it.
+- Before exporting the VM, run the cleanup (see "Cleanup before release"). `scripts/cleanup.sh` runs the cleanup CLI in the `api` container and asks for confirmation.
+- Web app login: one account from `challsmith.env`, checked in constant time. A session is a random token in an `HttpOnly`, `SameSite=Strict` cookie that lasts 12 hours, and only its BLAKE3 hash is stored, so the database cannot be used to log in. The browser talks only to `web`, which calls `api` for it, and `api` checks the session on every endpoint except login, so `web` is not the only guard. Writes need an `Origin` whose host equals the request's `Host`, and that `Host` must be in `WEB_ALLOWED_HOSTS` (a request with any other `Host` is refused), and the `/api/auth/*` routes cannot be reached from the browser.
+- `api` mounts `docker.sock`, so a login to the web app is root-equivalent on the VM. The firewall therefore blocks `ops` from port 3000 as well, and if the firewall fails to load, the `ops` account stays expired.
 - The firewall relies on Docker's userland proxy (the default). With `"userland-proxy": false` in `daemon.json`, loopback traffic to published ports is routed into the bridges and `ops` loses CTFd too, so keep the default.

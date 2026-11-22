@@ -11,5 +11,7 @@ table inet challsmith_ops {
     meta skuid "ops" oifname "br-*" reject
     # the registry has no auth; a push could replace a scenario that chall-manager runs with docker.sock
     meta skuid "ops" ip daddr 127.0.0.0/8 tcp dport 5000 reject with tcp reset
+    # trainees never need the web app; blocking it also stops password guessing against its login page
+    meta skuid "ops" ip daddr 127.0.0.0/8 tcp dport 3000 reject with tcp reset
   }
 }

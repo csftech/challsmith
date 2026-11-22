@@ -15,6 +15,7 @@ export DEBIAN_FRONTEND=noninteractive
 
 # values may be single-quoted (e.g. URLs containing &), which sourcing handles
 set -a; . "$SRC/challsmith.env"; set +a
+[ -n "${WEB_ADMIN_PASSWORD:-}" ] || { echo "WEB_ADMIN_PASSWORD is empty in challsmith.env: set the web app login password and rerun." >&2; exit 1; }
 : "${HTTP_PROXY:=}" "${HTTPS_PROXY:=}" "${NO_PROXY:=}" "${DOCKER_REGISTRY_MIRROR:=}"
 NO_PROXY_ALL="localhost,127.0.0.1,registry${NO_PROXY:+,$NO_PROXY}"
 [ -z "$HTTP_PROXY$HTTPS_PROXY" ] || export http_proxy="$HTTP_PROXY" https_proxy="$HTTPS_PROXY" no_proxy="$NO_PROXY_ALL"
@@ -113,6 +114,7 @@ fill() { # $1 = key; an installed non-empty value always wins
 }
 fill CTFD_SECRET_KEY
 fill CTFD_DB_PASSWORD
+fill APP_DB_PASSWORD
 [ "$OLD_ENV" = /dev/null ] || rm -f "$OLD_ENV"
 
 # 8. render ctfd-setup.yaml (reload env so generated secrets and admin values are current)
@@ -196,6 +198,10 @@ fi
 # The proxy goes only to the golang build container (module download), never to a challenge.
 sudo -u aps -H env GOPROXY="${GOPROXY:-}" GOSUMDB="${GOSUMDB:-}" HTTP_PROXY="$HTTP_PROXY" HTTPS_PROXY="$HTTPS_PROXY" NO_PROXY="$NO_PROXY_ALL" ORAS_BIN="$ORAS_BIN" \
   "$DEST/scripts/push-scenarios.sh" v1
+# chall-manager caches scenarios by reference (on disk and in memory), so a re-pushed :v1 is
+# only picked up after clearing the cache and restarting it. Running instances are unaffected.
+dc exec -T chall-manager rm -rf /root/.cache/chall-manager/oci
+dc restart chall-manager >/dev/null
 
 # 10. Burp Suite Community
 BURP=/opt/BurpSuiteCommunity
@@ -218,5 +224,6 @@ DESK
 cat <<MSG
 
 challsmith installed. CTFd: http://127.0.0.1:8000
+Web app: http://127.0.0.1:3000
 TODO: set passwords with 'sudo passwd aps' and 'sudo passwd ops'.
 MSG

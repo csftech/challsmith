@@ -1,0 +1,7 @@
+description: Python 3.15 and Flask web app, one container
+scenario: single
+protocol: http
+services:
+  - name: app
+    port: 5000
+    entry: true

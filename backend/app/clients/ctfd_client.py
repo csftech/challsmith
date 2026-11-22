@@ -1,0 +1,79 @@
+import re
+
+import httpx2 as httpx
+
+NONCE_RE = re.compile(r"csrfNonce': \"([0-9a-f]+)\"")
+
+
+class CtfdError(Exception):
+    pass
+
+
+class CtfdNotFound(CtfdError):
+    pass
+
+
+class CtfdClient:
+    """CTFd admin API over the web login session (no API token is created). Logs in lazily."""
+
+    def __init__(self, base_url: str, name: str, password: str, transport=None):
+        self._http = httpx.Client(base_url=base_url, transport=transport, timeout=30)
+        self._name, self._password = name, password
+        self._ready = False
+
+    def _nonce(self, path: str) -> str:
+        m = NONCE_RE.search(self._http.get(path).text)
+        if not m:
+            raise CtfdError(f"no csrfNonce on {path}; check that CTFD_URL points to CTFd and that CTFD_ADMIN_NAME and CTFD_ADMIN_PASSWORD match the CTFd admin")
+        return m.group(1)
+
+    def _login(self) -> None:
+        r = self._http.post("/login", data={"name": self._name, "password": self._password, "nonce": self._nonce("/login")})
+        if r.status_code != 302:
+            raise CtfdError("CTFd login failed: CTFD_ADMIN_NAME and CTFD_ADMIN_PASSWORD must match the CTFd admin account")
+        self._http.headers["CSRF-Token"] = self._nonce("/challenges")  # login regenerates the session nonce
+        self._ready = True
+
+    def _api(self, method: str, path: str, timeout: float = 30, **kw) -> dict:
+        if not self._ready:
+            self._login()
+        # CTFd rejects session-authenticated writes whose content type is not JSON, DELETE included
+        r = self._http.request(method, "/api/v1" + path, timeout=timeout, headers={"Content-Type": "application/json"}, **kw)
+        if r.status_code == 404:
+            raise CtfdNotFound(f"{method} {path} -> 404")
+        if not r.is_success:
+            raise CtfdError(f"{method} {path} -> {r.status_code}: {r.text[:500]}")
+        return r.json()
+
+    # chall-manager validates the scenario inside the CTFd request, hence the long timeout
+    def create_challenge(self, payload: dict) -> int:
+        return self._api("POST", "/challenges", 300, json=payload)["data"]["id"]
+
+    def update_challenge(self, cid: int, payload: dict) -> None:
+        self._api("PATCH", f"/challenges/{cid}", 300, json=payload)
+
+    def delete_challenge(self, cid: int) -> None:
+        self._api("DELETE", f"/challenges/{cid}", 300)
+
+    def set_tags(self, cid: int, tags: list[str]) -> None:
+        have = {t["value"]: t["id"] for t in self._api("GET", f"/challenges/{cid}/tags")["data"]}
+        for value, tid in have.items():
+            if value not in tags:
+                self._api("DELETE", f"/tags/{tid}")
+        for value in tags:
+            if value not in have:
+                self._api("POST", "/tags", json={"challenge_id": cid, "value": value})
+
+    def list_users(self) -> list[dict]:
+        users, page = [], 1
+        while page:
+            body = self._api("GET", "/users", params={"page": page})
+            users += body["data"]
+            page = body["meta"]["pagination"]["next"]
+        return users
+
+    def get_user(self, uid: int) -> dict:  # the list view has no "type"
+        return self._api("GET", f"/users/{uid}")["data"]
+
+    def delete_user(self, uid: int) -> None:
+        self._api("DELETE", f"/users/{uid}")

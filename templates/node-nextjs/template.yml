@@ -1,0 +1,7 @@
+description: Next.js 16 App Router app on Node.js 26, one container
+scenario: single
+protocol: http
+services:
+  - name: app
+    port: 3000
+    entry: true

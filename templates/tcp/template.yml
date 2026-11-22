@@ -1,0 +1,8 @@
+description: TCP service served by socat, one container
+category: Pwn
+scenario: single
+protocol: tcp
+services:
+  - name: app
+    port: 9000
+    entry: true

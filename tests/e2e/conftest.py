@@ -113,3 +113,65 @@ def get_until(url, needle, timeout=60):
             body = None
         assert time.time() < deadline, f"{url} never returned {needle!r}, last: {body!r}"
         time.sleep(2)
+
+
+# ---- web app (through the BFF only) ----
+
+WEB = os.environ.get("WEB_URL", "http://127.0.0.1:3000")
+PUBLISH_TIMEOUT = 600  # first publish builds images and pulls base images through the mirror
+
+
+def web_login():
+    s = requests.Session()
+    s.headers["Origin"] = WEB
+    r = s.post(WEB + "/api/login", json={"username": os.environ["WEB_ADMIN_USER"],
+                                         "password": os.environ["WEB_ADMIN_PASSWORD"]})
+    assert r.status_code == 200, f"web login failed: {r.status_code} {r.text[:200]}"
+    return s
+
+
+@pytest.fixture(scope="session")
+def web():
+    s = web_login()
+    yield s
+    s.post(WEB + "/api/logout")
+
+
+@pytest.fixture
+def new_challenge(web):
+    """Create a challenge from a template; return (slug, name). Deleted on teardown, CTFd challenge included."""
+    slugs = []
+
+    def create(template):
+        slug = f"e2e-{template}-{secrets.token_hex(3)}"
+        check(web.post(f"{WEB}/api/challenges", json={"slug": slug, "template": template, "name": slug}))
+        slugs.append(slug)
+        return slug
+
+    yield create
+    for slug in slugs:
+        r = web.delete(f"{WEB}/api/challenges/{slug}", timeout=INSTANCE_TIMEOUT)
+        assert r.ok or r.status_code == 404, f"cleanup of {slug}: {r.status_code} {r.text[:200]}"
+
+
+def put_file(web, slug, path, content):
+    check(web.put(f"{WEB}/api/challenges/{slug}/files/{path}", data=content.encode()))
+
+
+def publish(web, slug):
+    """Publish and wait for the run to end; return (status, log)."""
+    run_id = check(web.post(f"{WEB}/api/challenges/{slug}/publish"))["run_id"]
+    deadline = time.time() + PUBLISH_TIMEOUT
+    while True:
+        run = check(web.get(f"{WEB}/api/publish-runs/{run_id}"))
+        if run["status"] not in ("running", "pending", "queued"):
+            return run["status"], run["log"]
+        assert time.time() < deadline, f"publish of {slug} still {run['status']}:\n{run['log'][-2000:]}"
+        time.sleep(3)
+
+
+def ctfd_challenge(admin, name):
+    """The CTFd challenge (admin view, with additional) with this name."""
+    found = check(admin.get(CTFD + "/api/v1/challenges", params={"name": name, "view": "admin"}))["data"]
+    assert len(found) == 1, f"expected one CTFd challenge named {name}, got {found}"
+    return check(admin.get(f"{CTFD}/api/v1/challenges/{found[0]['id']}"))["data"]

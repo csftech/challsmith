@@ -4,7 +4,7 @@
 
 challsmith 是跑在一台 Ubuntu 26.04 VM 上的 CTFd 訓練環境，安裝一次後匯出成 vmdk 發給新人，新人在自己的副本上解 web 題。CTFd 搭配 ctfd-chall-manager plugin，每個題目 instance 都由 chall-manager 在需要時以 Docker container 啟動，並且各自擁有動態 flag。
 
-目前只完成基礎架構與兩個通用 scenario。給出題者使用的 web app 還在規劃中，所以題目要在 CTFd 管理介面手動建立（見「手動建立題目」）。
+出題者在 `http://127.0.0.1:3000` 的 web app 裡製作題目：選範本、編輯檔案、發佈，由 app 建置 image 並建立 CTFd 題目（見「出題流程」）。題目仍然可以在 CTFd 管理介面手動建立（見「手動建立題目」）。
 
 ## 系統架構
 
@@ -13,12 +13,16 @@ Ubuntu 26.04 VM
 ├─ ops（新人）── 瀏覽器 ──> CTFd 127.0.0.1:8000 ──> 題目 instance 127.0.0.1:<隨機 port>
 │                      └──> Burp Suite Community
 └─ aps（docker 群組）
+   │  （出題者）瀏覽器 ──> web app 127.0.0.1:3000 ──> api ──> CTFd、registry、docker
    └─ docker compose 專案 challsmith（restart: unless-stopped）
       ├─ ctfd                  CTFd 3.8.9 + ctfd-chall-manager plugin v0.10.1，127.0.0.1:8000
       ├─ ctfd-db / ctfd-redis  mariadb 11.8 / redis 8.10-alpine
       ├─ ctfd-setup            一次性，建立 CTFd 管理者與 plugin 設定
       ├─ chall-manager         v0.6.7，掛載 /var/run/docker.sock，不對外發布 port
       ├─ chall-manager-janitor 每分鐘回收逾時的 instance
+      ├─ web                   出題用的 web app（Next.js 16），127.0.0.1:3000，是通往 api 的唯一入口
+      ├─ api                   FastAPI 後端，掛載 /var/run/docker.sock，不對外發布 port
+      ├─ app-db                postgres 19-alpine，存放 web app 的題目、session 與設定
       └─ registry              registry 3.1，127.0.0.1:5000，存題目 image 與 scenario
 ```
 
@@ -33,10 +37,12 @@ Ubuntu 26.04 VM
 
 需要一台 Ubuntu 26.04 Desktop VM，能直接或經由公司 proxy 連上網路。
 
-1. 把 repo 複製到 VM，執行 `cp challsmith.env.example challsmith.env` 後編輯。管理者的名稱、email 與密碼必填。`CTFD_SECRET_KEY` 與 `CTFD_DB_PASSWORD` 留空時會自動產生。`CM_MANA_TOTAL` 是每位使用者的 mana 上限，預設為 5。
+1. 把 repo 複製到 VM，執行 `cp challsmith.env.example challsmith.env` 後編輯。CTFd 管理者的名稱、email 與密碼必填，web app 的密碼 `WEB_ADMIN_PASSWORD` 也必填（`WEB_ADMIN_USER` 是它的帳號，預設為 `admin`）。`CTFD_SECRET_KEY`、`CTFD_DB_PASSWORD` 與 `APP_DB_PASSWORD`（web app 的 PostgreSQL）留空時會自動產生。web app 以 CTFd 的管理者帳號登入 CTFd。`CM_MANA_TOTAL` 是每位使用者的 mana 上限，預設為 5。
 2. 執行 `sudo ./install.sh`，可以重複執行。它會安裝 Docker、寫入 Docker daemon 的 proxy 設定、建立使用者 `aps`（docker 群組）與 `ops`（已存在的 `ops` 會被移出 docker、sudo、adm 與 lxd 群組）、安裝 `ops` 的防火牆、把 repo 複製到 `/opt/challsmith`、啟動 compose 專案、build 並推送 scenario，最後安裝 Burp Suite Community。
 3. 設定密碼：`sudo passwd aps` 與 `sudo passwd ops`。
-4. 開啟 `http://127.0.0.1:8000`，用 `challsmith.env` 裡的管理者帳號登入。
+4. 開啟 `http://127.0.0.1:8000`，用 `challsmith.env` 裡的管理者帳號登入 CTFd。web app 在 `http://127.0.0.1:3000`，帳密是 `WEB_ADMIN_USER` 與 `WEB_ADMIN_PASSWORD`。
+
+如果在 CTFd 裡改了管理者密碼，要把 `challsmith.env` 的 `CTFD_ADMIN_PASSWORD` 一併改掉，再重新執行 `sudo ./install.sh`，否則 web app 會連不上 CTFd。在 web app 推出之前安裝的環境，會留下過時的 `/opt/challsmith/api` 目錄，安裝程式不會刪除它，可以自行手動移除。
 
 ### 公司網路
 
@@ -61,6 +67,57 @@ plugin 版本從 `scenarios/go.mod` 讀取（pulumi-docker v5.3.0），自行提
 
 需要 PECL extension 的 php-fpm base image 不在這裡 build，因為公司內沒有 PECL proxy。請在公司外先包好，再透過 Docker Hub proxy 拉取。
 
+## 出題流程
+
+在 VM 的瀏覽器開啟 `http://127.0.0.1:3000`，以 `WEB_ADMIN_USER` 與 `WEB_ADMIN_PASSWORD` 登入。
+
+1. 建立：填入 slug（小寫字母、數字與 `-`，最長 48 個字元）、名稱並選一個範本，app 會用範本的檔案建立題目。
+2. 編輯：修改題目的設定（分類、標籤、說明、分數、flag、protocol、資源上限、服務）與檔案。檔案放在 `services/<service>/` 底下，沒有設定 `image` 的服務會用它的 `Dockerfile` build。可以直接在瀏覽器編輯檔案，也可以把檔案或 `.zip` 上傳到服務的資料夾。換行符號混用或只有 CR 的檔案，以及不是 UTF-8 的檔案，在編輯器裡是唯讀的，請上傳新檔案來取代。
+3. 發佈：app 會 build 各服務的 image 並推到 `localhost:5000`，然後建立 CTFd 題目，如果之前發佈過，就更新同一個題目。使用官方 image 的服務（例如 `mariadb:11.8`）會複製到 `localhost:5000/challsmith/mirror/<名稱>:<tag>`。
+   發佈時 build context 裡的檔案權限是 `0644`、資料夾是 `0755`，所以腳本要用 `sh script` 執行，或在 `Dockerfile` 裡 `chmod +x`。
+4. 查看發佈 log，裡面有 docker 的輸出。build 或 push 失敗時，發佈會停在那一步，不會動到 CTFd，已發佈的版本維持原樣。
+
+題目的狀態有 `draft`（從未發佈）、`modified`（上次發佈後有修改）與 `published`。刪除題目時，它在 CTFd 的題目與 instance 也會一併刪除，而如果 CTFd 上的題目被手動刪掉，再發佈時會建立新的題目。每個 instance 的 flag 都放在環境變數 `FLAG`，見「題目 image 怎麼讀 flag」。
+
+### 範本
+
+| 範本 | scenario | 內容 |
+|---|---|---|
+| `php` | single | PHP 8.6 內建 web server，單一 container |
+| `nginx-php-db` | multi | nginx、PHP-FPM 與 MariaDB，三個 container |
+| `python-flask` | single | Python 3.15 與 Flask web app，單一 container |
+| `node-nextjs` | single | Node.js 26 上的 Next.js 16 App Router app，單一 container |
+| `tcp` | single | 以 socat 提供的 TCP 服務，單一 container，分類為 Pwn |
+
+## git 與備份
+
+兩者都在 web app 的同步頁面。
+
+- 設定：要填遠端網址（`https://`、`http://`、`file://` 或本機路徑）、使用者名稱、access token、分支（預設 `main`）與 repo 內的目錄（預設 `challenges`）。token 存在 web app 的資料庫裡，api 不會把它回傳，而 git 的連線會經過 `challsmith.env` 設定的公司 proxy。
+- 匯出到 git：把每個題目提交成 `<目錄>/<slug>/` 並推送。每個題目的比對基準（上次同步時的狀態）只有在推送成功，或是沒有東西需要提交時，才會移動。推送失敗，或是只匯出而不推送時，基準維持不變，所以之後匯入時，git 上的舊版不會默默蓋掉你的修改。
+- 匯入：先預覽，來源可以是 git repo，也可以是上傳的備份壓縮檔。系統會依資料庫、來源與基準，把每個題目歸入五種狀態之一：
+
+| 狀態 | 意思 | 套用時 |
+|---|---|---|
+| `new` | 只存在於來源 | 建立題目 |
+| `unchanged` | 兩邊相同 | 移動基準（僅限 git） |
+| `source_changed` | 只有來源改過 | 以來源覆蓋資料庫 |
+| `db_changed` | 只有資料庫改過 | 不做任何事 |
+| `conflict` | 兩邊都改過 | 每個題目都要選 `source` 或 `db`，沒選就不能套用 |
+
+  驗證不通過的題目會顯示為 `invalid` 並被略過。預覽之後如果有題目被改動，套用會被拒絕。
+- 下載備份：把所有題目打包成 `.tar.gz`。它不會移動比對基準，因為這個檔案可能根本不會被匯入到任何地方。匯入備份也不會移動基準，因為基準只跟著 git（git 匯出與 git 匯入）走。備份裡可能是比基準更舊的內容，如果基準跟著移過去，之後從 git 匯入時，就會不經詢問地用舊版覆蓋掉較新的內容。套用備份只會寫入你選擇的內容，基準維持原樣。
+
+## 發佈前清理
+
+要把 VM 匯出給新人之前，請開啟 web app 的清理頁面並輸入 `CLEANUP`，或以 `aps`（或 root）執行 `scripts/cleanup.sh`，它會要求相同的確認。清理會刪除：
+
+- 所有 chall-manager 的 instance，以及殘留的 `challenge-*` container 與網路。
+- 所有不是管理者的 CTFd 使用者。
+- 所有 web app 的 session，所以你也會被登出。
+
+題目、registry 裡的 image、git 設定與 CTFd 管理者帳號都會保留。
+
 ## 手動建立題目
 
 1. 先 build 題目 image 並推到本機 registry，例如 `docker build -t localhost:5000/challsmith/my-chall:v1 .` 與 `docker push localhost:5000/challsmith/my-chall:v1`，用 `aps`（或其他 docker 群組的使用者）執行。`examples/` 目錄裡有可以直接使用的題目。
@@ -71,7 +128,7 @@ plugin 版本從 `scenarios/go.mod` 讀取（pulumi-docker v5.3.0），自行提
 
 ### 題目 image 怎麼讀 flag
 
-每個 container 都會拿到環境變數 `FLAG`，例如 `CTF{php_strcmp_array_...}`。image 裡不能包含 flag，由 entrypoint 或程式在啟動時讀取 `FLAG`，例如寫成 `/flag.txt` 或寫進資料庫。multi 題目的每個服務都會拿到 `FLAG`，服務的 `env` 裡若也設了 `FLAG` 會被覆蓋。每個 instance 的 flag 都不同，同一位新人刪掉 instance 再重開，也會拿到新的 flag。
+每個 container 都會拿到環境變數 `FLAG`，例如 `APS{php_strcmp_array_3f9a1c07e2b84d65}`，格式是 flag 範本、底線，再接上 instance 的 identity（chall-manager 產生的 64 位元亂數）。不論 flag 範本多短，不同 instance 拿到相同 flag 的機率都極低，instance 存在期間 flag 也不會變，管理者還能從提交的 flag 看出它屬於哪個 instance。image 裡不能包含 flag，由 entrypoint 或程式在啟動時讀取 `FLAG`，例如寫成 `/flag.txt` 或寫進資料庫。multi 題目的每個服務都會拿到 `FLAG`，服務的 `env` 裡若也設了 `FLAG` 會被覆蓋。每個 instance 的 flag 都不同，同一位新人刪掉 instance 再重開，也會拿到新的 flag。
 
 ### single 的鍵
 
@@ -81,7 +138,7 @@ plugin 版本從 `scenarios/go.mod` 讀取（pulumi-docker v5.3.0），自行提
 | `flag` | flag 範本的內文，例如 `php_strcmp_array` | 必填 |
 | `port` | container 內部的服務 port（1-65535） | `80` |
 | `protocol` | `http` 產生 `http://localhost:<port>`，`tcp` 產生 `nc localhost <port>` | `http` |
-| `flag_prefix` | flag 外層的格式，結果為 `CTF{...}` | `CTF` |
+| `flag_prefix` | flag 外層的格式，結果為 `APS{...}` | `APS` |
 | `memory` | 記憶體上限，整數加上 `m` 或 `g`，例如 `256m`、`1g` | `256m` |
 | `cpus` | CPU 上限，大於 0 的數字 | `0.5` |
 
@@ -113,7 +170,7 @@ scenario 的單元測試，在 build 用的同一個 container image 裡執行�
 docker run --rm -v "$PWD/scenarios:/src" -w /src golang:1.27-alpine go test ./...
 ```
 
-端對端測試在已安裝的 VM 上以 `aps` 執行，會先 build 並推送 `examples/` 的 image，再透過 CTFd API 建立 instance：
+端對端測試在已安裝的 VM 上以 `aps` 執行，會先 build 並推送 `examples/` 的 image，透過 CTFd API 建立 instance，並操作 3000 port 的 web app（建立、編輯、發佈、重新發佈、build 失敗、登入與 Origin 檢查、備份與匯入預覽）。執行程式會從 `challsmith.env` 讀取 `WEB_ADMIN_USER` 與 `WEB_ADMIN_PASSWORD`。清理測試會刪除所有新人與 web session，所以最後才以獨立的 pytest 執行，之後執行程式會檢查是否還有 `challenge-*` container 殘留：
 
 ```
 tests/e2e/run.sh
@@ -121,7 +178,7 @@ tests/e2e/run.sh
 
 測試程式裡的 pip 會從 `aps` 的 Docker client 設定（`~/.docker/config.json` 的 `proxies` 區段）取得 proxy。如果在那裡設了 proxy，`noProxy` 必須包含 `localhost` 與 `127.0.0.1`，否則測試連 CTFd 的流量會被送到 proxy。
 
-`ops` 隔離檢查以 root 執行。只要 `ops` 連得到任何服務或 instance 的 container、chall-manager 或 registry，或是連不到 CTFd 與 instance 的對外 port，檢查就會失敗：
+`ops` 隔離檢查以 root 執行。只要 `ops` 連得到任何服務或 instance 的 container、chall-manager 或 registry，或是連得到 127.0.0.1:3000 的 web app，或是 `aps` 連不到 web app，或是暫時的 `challenge-isocheck` 網路上的 container 連得到任何平台服務，或是 `ops` 連不到 CTFd 與 instance 的對外 port，檢查就會失敗：
 
 ```
 sudo tests/ops-isolation.sh
@@ -132,6 +189,9 @@ sudo tests/ops-isolation.sh
 1. VM 重開機後，instance 的 container 會自動回來，但 Docker 可能分配新的對外 port（實測從 32776 變成 32768）。CTFd 仍顯示舊的連線網址，所以新人必須刪除 instance 再重新開一個。
 2. php 單一 container 的題目使用 `php -S`，它是單執行緒，一台 VM 只有一位新人使用時沒有問題。
 3. 拿到 vmdk 的人都能取得 root，動態 flag 只能防止新人互相抄 flag，真正的管控方式是 writeup 與口頭確認。
+4. 匯入預覽存在 api 的記憶體中，保留 30 分鐘，所以 api 重新啟動後，必須重新預覽。
+5. web app 只回應 `WEB_ALLOWED_HOSTS` 列出的 Host 名稱（預設為 `localhost:3000,127.0.0.1:3000`），目的是防止 DNS rebinding。如果要用別的名稱連到這台 VM，請在 `challsmith.env` 加上該名稱（以逗號分隔），其他 Host 會收到 421。
+6. web app 只有一個帳號，而且它以 CTFd 的管理者帳號登入 CTFd，所以兩邊的密碼必須同步。
 
 ## 疑難排解
 
@@ -150,5 +210,9 @@ Pulumi 的 log 放在 `cm-pulumi` volume，也就是 chall-manager 內的 `/var/
 - `ops` 不在 docker 群組，`/opt/challsmith` 的權限是 750，`challsmith.env` 是 600。
 - chall-manager 掛載了 `docker.sock`，等同於這台 VM 的 root 權限，所以這台 VM 只適合拿來做用完即丟的訓練。
 - 所有對外的 port 都只綁在 127.0.0.1，從網路連不到服務與 instance。
-- VM 本身連得到 container 的網路，所以用 nftables 的 `inet challsmith_ops` 表擋住 `ops`（`/etc/challsmith/ops-firewall.nft`，開機時由 `challsmith-ops-firewall.service` 載入）。它拒絕 `ops` 送進 Docker bridge（`docker0`、`br-*`，包含每個 instance 專屬的 network）的所有流量，以及送往 loopback 上 registry port 5000 的流量。`ops` 仍然連得到 127.0.0.1:8000 的 CTFd 與 instance 的 port，因為這些連線經過 Docker 以 root 執行的 port proxy。少了這道防火牆，`ops` 就能呼叫不需登入的 chall-manager API 讀到每個 instance 的 flag、讀取 redis 裡的 CTFd session，或是推一個 scenario 到 registry，讓 chall-manager 帶著 `docker.sock` 執行。
+- VM 本身連得到 container 的網路，所以用 nftables 的 `inet challsmith_ops` 表擋住 `ops`（`/etc/challsmith/ops-firewall.nft`，開機時由 `challsmith-ops-firewall.service` 載入）。它拒絕 `ops` 送進 Docker bridge（`docker0`、`br-*`，包含每個 instance 專屬的 network）的所有流量，以及送往 loopback 上 registry port 5000 與 web app port 3000 的流量。`ops` 仍然連得到 127.0.0.1:8000 的 CTFd 與 instance 的 port，因為這些連線經過 Docker 以 root 執行的 port proxy。少了這道防火牆，`ops` 就能呼叫不需登入的 chall-manager API 讀到每個 instance 的 flag、讀取 redis 裡的 CTFd session，或是推一個 scenario 到 registry，讓 chall-manager 帶著 `docker.sock` 執行。
+- 防火牆採失敗即關閉：`challsmith-ops-firewall.service` 先讓 `ops` 帳號過期，規則載入成功後才解鎖，所以載入失敗時 `ops` 無法登入（`aps` 不受影響）。Docker 會把每個 instance 專屬的 `challenge-*` 網路與 compose 網路隔開，`tests/ops-isolation.sh` 會驗證這點。
+- 匯出 VM 之前，請先執行清理（見「發佈前清理」）。`scripts/cleanup.sh` 會在 `api` container 內執行清理指令並要求確認。
+- web app 的登入：只有 `challsmith.env` 裡的一個帳號，以固定時間比對。session 是放在 `HttpOnly`、`SameSite=Strict` cookie 裡的隨機 token，效期 12 小時，資料庫只存它的 BLAKE3 雜湊值，所以拿到資料庫也無法登入。瀏覽器只會連到 `web`，由 `web` 代為呼叫 `api`，而 `api` 除了登入以外的每個端點都會自己驗證 session，所以擋住請求的並不是只有 `web`。寫入請求的 `Origin` 其 host 必須與請求的 `Host` 相同，而且這個 `Host` 必須在 `WEB_ALLOWED_HOSTS` 內，`Host` 不在其中的請求會被拒絕，瀏覽器也無法連到 `/api/auth/*` 這些路由。
+- `api` 掛載了 `docker.sock`，所以登入 web app 就等於取得這台 VM 的 root 權限。因此防火牆同樣擋住 `ops` 連往 3000 port，而且防火牆載入失敗時，`ops` 帳號會維持過期狀態。
 - 這道防火牆要靠 Docker 預設的 userland proxy 才能運作。如果在 `daemon.json` 設了 `"userland-proxy": false`，loopback 上連往對外 port 的流量會被轉進 bridge，`ops` 連 CTFd 也會被擋，所以請維持預設值。
