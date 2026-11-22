@@ -36,3 +36,14 @@ def login(db: Session, username: str, password: str) -> tuple[str, datetime]:
     web_session_repository.add(db, token_hash(token), expires_at)
     db.commit()
     return token, expires_at
+
+
+def validate_session(db: Session, token: str) -> WebSession | None:
+    row = web_session_repository.get(db, token_hash(token))
+    if row is None:
+        return None
+    if row.expires_at <= now():
+        web_session_repository.remove(db, row)  # lazy cleanup of expired sessions
+        db.commit()
+        return None
+    return row

@@ -4,9 +4,8 @@ from sqlalchemy.orm import Session
 from app.clients import ctfd_client, docker_client
 from app.core.config import get_settings
 from app.core.db import get_session
-from app.core.security import now, token_hash
 from app.models import WebSession
-from app.repositories import web_session_repository
+from app.services import auth_service
 
 
 def _unauthorized() -> HTTPException:
@@ -20,12 +19,8 @@ def require_session(
     scheme, _, token = (authorization or "").partition(" ")
     if scheme.lower() != "bearer" or not token:
         raise _unauthorized()
-    row = web_session_repository.get(db, token_hash(token))
+    row = auth_service.validate_session(db, token)
     if row is None:
-        raise _unauthorized()
-    if row.expires_at <= now():
-        web_session_repository.remove(db, row)  # lazy cleanup of expired sessions
-        db.commit()
         raise _unauthorized()
     return row
 
