@@ -139,6 +139,8 @@ def preview(db: Session, source: dict[str, dict[str, bytes]], invalid: dict[str,
             meta, files = challenge_schema.from_folder(folder)
             if meta.slug != slug:
                 raise ValueError(f"folder name {slug!r} does not match the slug {meta.slug!r} in challenge.yml")
+            if slug in challenge_schema.RESERVED_SLUGS:
+                raise ValueError(f"slug {slug!r} is reserved")
             src_hash = hash_util.content_hash(meta, files)
         except ValueError as e:
             items.append({"slug": slug, "status": "invalid", "error": str(e)})
