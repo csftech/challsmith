@@ -143,3 +143,10 @@ def test_rate_limit_is_an_error_without_retry():
     with pytest.raises(ctfd_client.CtfdError, match="429"):
         c.list_positions()
     assert sum(1 for m, p, _ in calls if p.startswith("/api")) == 1
+
+
+def test_set_position_sends_only_the_position():
+    calls, bodies = [], []
+    make(ok_login(calls, lambda r: (bodies.append(json.loads(r.content)), httpx.Response(200, json={"success": True}))[1])).set_position(7, 3)
+    assert ("PATCH", "/api/v1/challenges/7", "abc123") in calls
+    assert bodies == [{"position": 3}]
