@@ -1,0 +1,36 @@
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", system-ui, sans-serif;
+  font-size: 15px;
+  color: #1f2328;
+  background: #f6f8fa;
+}
+header.bar { display: flex; align-items: center; gap: 12px; padding: 10px 20px; background: #fff; border-bottom: 1px solid #d0d7de; }
+header.bar h1 { font-size: 18px; margin: 0; flex: 1; }
+main { padding: 20px; }
+a { color: #0969da; }
+button, .btn {
+  font: inherit; padding: 5px 12px; border: 1px solid #d0d7de; border-radius: 6px;
+  background: #f6f8fa; cursor: pointer; text-decoration: none; color: inherit;
+}
+.primary { background: #1f883d; color: #fff; border-color: #1f883d; }
+button.danger { color: #cf222e; }
+button:disabled { opacity: .5; cursor: default; }
+input, select, textarea { font: inherit; padding: 4px 8px; border: 1px solid #d0d7de; border-radius: 6px; background: #fff; max-width: 100%; }
+textarea { width: 100%; }
+label { display: block; margin: 8px 0 2px; font-size: 13px; color: #57606a; }
+label.inline { display: inline-flex; gap: 6px; align-items: center; color: inherit; font-size: inherit; }
+table { border-collapse: collapse; width: 100%; background: #fff; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #d0d7de; }
+.error { color: #cf222e; white-space: pre-wrap; margin: 8px 0; }
+.card { background: #fff; border: 1px solid #d0d7de; border-radius: 8px; padding: 16px; max-width: 640px; }
+.editor { display: grid; grid-template-columns: minmax(340px, 440px) 1fr; gap: 16px; align-items: start; }
+.panel { background: #fff; border: 1px solid #d0d7de; border-radius: 8px; padding: 12px; }
+.svc { border: 1px solid #d0d7de; border-radius: 6px; padding: 8px; margin: 8px 0; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tree { max-height: 220px; overflow: auto; margin: 8px 0; font-family: ui-monospace, monospace; font-size: 13px; }
+.tree div { padding: 2px 6px; cursor: pointer; border-radius: 4px; }
+.tree div.sel { background: #ddf4ff; }
+@media (max-width: 900px) { .editor { grid-template-columns: 1fr; } }

@@ -220,5 +220,6 @@ DESK
 cat <<MSG
 
 challsmith installed. CTFd: http://127.0.0.1:8000
+Web app: http://127.0.0.1:3000
 TODO: set passwords with 'sudo passwd aps' and 'sudo passwd ops'.
 MSG

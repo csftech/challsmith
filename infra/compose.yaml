@@ -172,6 +172,27 @@ services:
       app-db:
         condition: service_healthy
 
+  web:
+    build:
+      context: ../frontend
+      # predefined proxy build args: used by npm but not kept in the image
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-}
+        http_proxy: ${HTTP_PROXY:-}
+        https_proxy: ${HTTPS_PROXY:-}
+        no_proxy: ${NO_PROXY:-}
+    image: challsmith/web:0.1.0
+    restart: unless-stopped
+    environment:
+      <<: *no-proxy
+      API_URL: http://api:8000
+    ports:
+      - 127.0.0.1:3000:3000
+    depends_on:
+      - api
+
 volumes:
   app-db:
   app-data:
