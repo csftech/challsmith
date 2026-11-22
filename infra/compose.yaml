@@ -135,7 +135,7 @@ services:
   api:
     build:
       context: ..
-      dockerfile: api/Dockerfile
+      dockerfile: backend/Dockerfile
       target: runtime
       # predefined proxy build args: used by RUN (apk, pip) but not kept in the image
       args:
