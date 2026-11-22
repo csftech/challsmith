@@ -69,3 +69,10 @@ def test_list_users_follows_pages():
         return httpx.Response(200, json={"data": [{"id": page}], "meta": {"pagination": {"next": nxt}}})
 
     assert make(ok_login([], extra)).list_users() == [{"id": 1}, {"id": 2}]
+
+
+def test_set_config_patches_configs():
+    calls, bodies = [], []
+    make(ok_login(calls, lambda r: (bodies.append(json.loads(r.content)), httpx.Response(200, json={"success": True}))[1])).set_config("chall-manager:chall-manager_mana_total", 0)
+    assert ("PATCH", "/api/v1/configs", "abc123") in calls
+    assert bodies == [{"chall-manager:chall-manager_mana_total": 0}]

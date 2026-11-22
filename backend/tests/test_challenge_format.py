@@ -15,7 +15,7 @@ scenario: single          # single 或 multi
 flag: php_strcmp_array
 instance:
   timeout: 3600           # 秒，instance 存活時間
-  mana: 1
+  mana: 0
 services:
   - name: app
     port: 80
@@ -70,3 +70,10 @@ def test_folder_roundtrip_and_missing_yml():
     assert challenge_schema.from_folder(folder) == (meta, {"services/app/index.php": b"x"})
     with pytest.raises(ValueError):
         challenge_schema.from_folder({"a": b""})
+
+
+def test_mana_defaults_to_zero_and_zero_is_valid():
+    meta = challenge_schema.ChallengeMeta.model_validate({"slug": "a", "name": "A", "category": "w", "value": 100, "scenario": "single",
+                                                          "flag": "f", "services": [{"name": "app", "port": 80, "entry": True}]})
+    assert meta.instance.mana == 0
+    assert challenge_schema.InstanceSpec(mana=0).mana == 0

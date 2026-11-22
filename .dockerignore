@@ -1,0 +1,6 @@
+# api build context is the repo root: send only backend/ (keeps .env, challsmith.env and
+# infra/ctfd/setup.yaml, which hold credentials, out of the build context).
+*
+!backend/
+backend/**/__pycache__
+backend/**/.pytest_cache

@@ -33,7 +33,7 @@ services:
       REDIS_URL: redis://ctfd-redis:6379
       SECRET_KEY: ${CTFD_SECRET_KEY}
       PLUGIN_SETTINGS_CM_API_URL: http://chall-manager:8080
-      PLUGIN_SETTINGS_CM_MANA_TOTAL: ${CM_MANA_TOTAL:-5}
+      PLUGIN_SETTINGS_CM_MANA_TOTAL: ${CM_MANA_TOTAL:-0}
     volumes:
       - ctfd-uploads:/var/uploads
     depends_on:
@@ -79,7 +79,7 @@ services:
       URL: http://ctfd:8000
       FILE: /ctfd-setup.yaml
     volumes:
-      - ./ctfd-setup.yaml:/ctfd-setup.yaml:ro
+      - ./ctfd/setup.yaml:/ctfd-setup.yaml:ro
     depends_on:
       ctfd:
         condition: service_healthy
@@ -109,7 +109,7 @@ services:
       - chall-manager
 
   registry:
-    image: registry:3.1
+    image: registry:3
     restart: unless-stopped
     environment: *no-proxy
     ports:

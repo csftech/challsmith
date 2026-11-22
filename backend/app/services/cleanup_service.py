@@ -6,16 +6,22 @@ from app.services.errors import BadGateway
 CONFIRM = "CLEANUP"
 
 
+def reset_instances(cm, docker, log) -> tuple[int, int, int]:
+    """Delete every chall-manager instance, then remove leftover challenge-* containers and networks."""
+    instances = cm.list_instances()
+    for cid, sid in instances:
+        cm.delete_instance(cid, sid)
+    log(f"deleted {len(instances)} instances")
+    containers = docker.remove_containers("challenge-", log)
+    networks = docker.remove_networks("challenge-", log)
+    log(f"removed {containers} containers, {networks} networks")
+    return len(instances), containers, networks
+
+
 def run_cleanup(db: Session, cm, ctfd, docker, log) -> dict:
     """Instances, leftover scenario containers/networks, trainee users, then web sessions; stops at the first failure."""
     try:
-        instances = cm.list_instances()
-        for cid, sid in instances:
-            cm.delete_instance(cid, sid)
-        log(f"deleted {len(instances)} instances")
-        containers = docker.remove_containers("challenge-", log)
-        networks = docker.remove_networks("challenge-", log)
-        log(f"removed {containers} containers, {networks} networks")
+        instances, containers, networks = reset_instances(cm, docker, log)
         trainees = [u["id"] for u in ctfd.list_users() if ctfd.get_user(u["id"])["type"] != "admin"]
         for uid in trainees:
             ctfd.delete_user(uid)
@@ -25,4 +31,4 @@ def run_cleanup(db: Session, cm, ctfd, docker, log) -> dict:
         raise BadGateway(f"cleanup stopped: {e}")
     sessions = auth_service.clear_sessions(db)
     log(f"cleared {sessions} web sessions")
-    return {"instances": len(instances), "containers": containers, "networks": networks, "users": len(trainees), "sessions": sessions}
+    return {"instances": instances, "containers": containers, "networks": networks, "users": len(trainees), "sessions": sessions}

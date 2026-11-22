@@ -1,4 +1,4 @@
-"""python -m app.cli.cleanup [--yes]: pre-release cleanup, same as POST /cleanup."""
+"""python -m app.cli.cleanup [--instances-only] [--yes]: pre-release cleanup (same as POST /cleanup), or only the instance reset."""
 import argparse
 import sys
 
@@ -15,13 +15,17 @@ PLAN = """This will delete:
   - every web app session (you will be logged out)
 Challenges, images and other data are kept."""
 
+PLAN_INSTANCES = """This will delete every chall-manager instance and leftover challenge-* container and network.
+CTFd users, web sessions, challenges and images are kept."""
+
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="python -m app.cli.cleanup")
     ap.add_argument("--yes", action="store_true", help="skip the confirmation prompt")
+    ap.add_argument("--instances-only", action="store_true", help="only delete instances and their containers and networks (used at boot)")
     args = ap.parse_args(argv)
     if not args.yes:
-        print(PLAN)
+        print(PLAN_INSTANCES if args.instances_only else PLAN)
         try:
             answer = input(f"Type {cleanup_service.CONFIRM} to continue: ").strip()
         except EOFError:
@@ -33,10 +37,13 @@ def main(argv=None) -> int:
     try:
         s = get_settings()
         cm = chall_manager_client.ChallManager(s.chall_manager_url)
-        ctfd = ctfd_client.CtfdClient(s.ctfd_url, s.ctfd_admin_name, s.ctfd_admin_password)
         docker = docker_client.DockerOps(s.upstream_http_proxy, s.upstream_https_proxy, s.upstream_no_proxy)
-        with Session(get_engine()) as db:
-            print(cleanup_service.run_cleanup(db, cm, ctfd, docker, print))
+        if args.instances_only:
+            print(cleanup_service.reset_instances(cm, docker, print))
+        else:
+            ctfd = ctfd_client.CtfdClient(s.ctfd_url, s.ctfd_admin_name, s.ctfd_admin_password)
+            with Session(get_engine()) as db:
+                print(cleanup_service.run_cleanup(db, cm, ctfd, docker, print))
     except Exception as e:
         print(f"cleanup failed: {e}", file=sys.stderr)
         return 1

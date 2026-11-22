@@ -218,3 +218,11 @@ def test_delete_refused_while_publish_running(api, db):
     db.commit()
     assert api.delete("/challenges/c1").status_code == 409
     assert api.get("/challenges/c1").status_code == 200
+
+
+def test_ctfd_payload_mana_cost(db):
+    challenge_service.create_challenge(db, "p", "php", "P")
+    meta = challenge_service.meta_of(db.scalar(select(Challenge)))
+    assert publish_service.ctfd_payload(meta, "ref", {})["mana_cost"] == 0
+    meta.instance.mana = 2
+    assert publish_service.ctfd_payload(meta, "ref", {})["mana_cost"] == 2

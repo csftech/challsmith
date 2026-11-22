@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/csftech/challsmith/scenarios/internal/scenario"
+	"github.com/csftech/challsmith/infra/scenarios/internal/scenario"
 )
 
 const identity = "0123456789abcdef"
@@ -90,7 +90,7 @@ func TestSingleCreatesLockedDownContainer(t *testing.T) {
 	assert.True(t, found)
 	assert.Equal(t, 256.0, in["memory"].NumberValue())
 	assert.Equal(t, "0.5", in["cpus"].StringValue())
-	assert.Equal(t, "unless-stopped", in["restart"].StringValue())
+	assert.Equal(t, "no", in["restart"].StringValue())
 	assert.Equal(t, "challenge-"+identity, in["name"].StringValue())
 }
 

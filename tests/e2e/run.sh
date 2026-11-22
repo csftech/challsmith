@@ -6,7 +6,7 @@ repo=$(cd "$(dirname "$0")/../.." && pwd)
 envfile=${CHALLSMITH_ENV:-/opt/challsmith/challsmith.env}
 reg=localhost:5000/challsmith/examples
 
-build() { docker build -q -t "$reg/$1:test" "$repo/examples/$2" && docker push -q "$reg/$1:test"; }
+build() { docker build -q -t "$reg/$1:test" "$repo/tests/e2e/fixtures/$2" && docker push -q "$reg/$1:test"; }
 build hello-php hello-php
 build hello-multi-web hello-multi/web
 build hello-multi-app hello-multi/app

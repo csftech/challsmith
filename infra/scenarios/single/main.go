@@ -9,7 +9,7 @@ import (
 	"github.com/pulumi/pulumi-docker/sdk/v5/go/docker"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/csftech/challsmith/scenarios/internal/scenario"
+	"github.com/csftech/challsmith/infra/scenarios/internal/scenario"
 )
 
 func main() { sdk.Run(deploy) }
@@ -35,7 +35,7 @@ func deploy(req *sdk.Request, resp *sdk.Response, opts ...pulumi.ResourceOption)
 		Envs:    pulumi.ToStringArray(scenario.ContainerEnv(nil, flag)),
 		Memory:  pulumi.Int(cfg.MemoryMB),
 		Cpus:    pulumi.String(strconv.FormatFloat(cfg.CPUs, 'f', -1, 64)),
-		Restart: pulumi.String("unless-stopped"),
+		Restart: pulumi.String("no"),
 		Rm:      pulumi.Bool(false),
 		Ports: docker.ContainerPortArray{&docker.ContainerPortArgs{
 			Internal: pulumi.Int(cfg.Port),

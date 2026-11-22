@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/csftech/challsmith/scenarios/internal/scenario"
+	"github.com/csftech/challsmith/infra/scenarios/internal/scenario"
 )
 
 const identity = "0123456789abcdef"
@@ -105,7 +105,7 @@ func TestMultiOneNetworkAllAttached(t *testing.T) {
 		assert.Equal(t, name, o["aliases"].ArrayValue()[0].StringValue())
 		assert.Equal(t, 256.0, c.in["memory"].NumberValue())
 		assert.Equal(t, "0.5", c.in["cpus"].StringValue())
-		assert.Equal(t, "unless-stopped", c.in["restart"].StringValue())
+		assert.Equal(t, "no", c.in["restart"].StringValue())
 	}
 }
 

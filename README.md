@@ -11,7 +11,7 @@ Authors build challenges in a web app on `http://127.0.0.1:3000`: pick a templat
 ```
 Ubuntu 26.04 VM
 ├─ ops (trainee) ── browser ──> CTFd 127.0.0.1:8000 ──> challenge instance 127.0.0.1:<random port>
-│                          └──> Burp Suite Community
+│                          └──> Burp Suite
 └─ aps (docker group)
    │  (authors) browser ──> web app 127.0.0.1:3000 ──> api ──> CTFd, registry, docker
    └─ docker compose project "challsmith" (restart: unless-stopped)
@@ -37,10 +37,14 @@ The two scenarios are written in Go (Go 1.27, pulumi-docker v5.3.0) and are buil
 
 You need an Ubuntu 26.04 Desktop VM with internet access, directly or through the company proxies.
 
-1. Copy the repository to the VM, then `cp challsmith.env.example challsmith.env` and edit it. The CTFd admin name, email and password are required, and so is `WEB_ADMIN_PASSWORD`, the password of the web app (`WEB_ADMIN_USER` is its user name, default `admin`). `CTFD_SECRET_KEY`, `CTFD_DB_PASSWORD` and `APP_DB_PASSWORD` (the web app's PostgreSQL) are generated when left empty. The web app signs in to CTFd with the CTFd admin account. `CM_MANA_TOTAL` is the per-user mana limit (default 5).
-2. Run `sudo ./install.sh`. It is safe to re-run. It installs Docker, writes the Docker daemon proxy settings, creates the users `aps` (docker group) and `ops` (an existing `ops` is removed from the docker, sudo, adm and lxd groups), installs the `ops` firewall, copies the repository to `/opt/challsmith`, starts the compose project, builds and pushes the scenarios, and installs Burp Suite Community.
+1. Copy the repository to the VM, then `cp challsmith.env.example challsmith.env` and edit it. The CTFd admin name, email and password are required, and so is `WEB_ADMIN_PASSWORD`, the password of the web app (`WEB_ADMIN_USER` is its user name, default `admin`). `CTFD_SECRET_KEY`, `CTFD_DB_PASSWORD` and `APP_DB_PASSWORD` (the web app's PostgreSQL) are generated when left empty. The web app signs in to CTFd with the CTFd admin account. `CM_MANA_TOTAL` is the per-user mana limit (default 0, unlimited; see below).
+2. Run `sudo ./install.sh`. It is safe to re-run. It installs Docker, writes the Docker daemon proxy settings, creates the users `aps` (docker group) and `ops` (an existing `ops` is removed from the docker, sudo, adm and lxd groups), installs the `ops` firewall, copies the repository to `/opt/challsmith`, starts the compose project, builds and pushes the scenarios, and installs Burp Suite (PortSwigger's merged installer, pinned by `BURP_VERSION` and verified by SHA-256). Without a licence it runs as Community; that is PortSwigger's behaviour, so the maintainer should confirm it on the desktop. Installs from before this lived in `/opt/BurpSuiteCommunity`, which the installer leaves alone and you can delete.
 3. Set the passwords: `sudo passwd aps` and `sudo passwd ops`.
 4. Open `http://127.0.0.1:8000` and log in to CTFd with the admin account from `challsmith.env`. The web app is at `http://127.0.0.1:3000`, with `WEB_ADMIN_USER` and `WEB_ADMIN_PASSWORD`.
+
+Mana is unlimited by default: with `CM_MANA_TOTAL=0` the CTFd plugin ignores mana, and a trainee can run instances of any number of challenges at once. The per-challenge `mana` field in the web app (default 0) only matters when you set `CM_MANA_TOTAL` to a positive number, which then caps the sum of the mana of one user's running instances. Existing installs copied `CM_MANA_TOTAL=5` from the old example: change it to `0` in `challsmith.env` and rerun `sudo ./install.sh` to lift the limit.
+
+If your `challsmith.env` still has the old `BURP_DOWNLOAD_URL` for Burp Suite Community (the `product=community` URL from the previous example), the installer ignores it and uses the pinned default, printing a notice when it can detect the old line (an unquoted line is cut at the `&` when the file is read, so it is already effectively unset and no notice appears); remove that line to be sure.
 
 If you change the CTFd admin password in CTFd, change `CTFD_ADMIN_PASSWORD` in `challsmith.env` too and rerun `sudo ./install.sh`, otherwise the web app can no longer reach CTFd. Installs from before the web app left a stale `/opt/challsmith/api` directory; the installer does not delete it, so you can remove it by hand.
 
@@ -63,7 +67,7 @@ The installer downloads two files from GitHub releases and verifies them against
 
 To override the download, set `PULUMI_DOCKER_PLUGIN` or `ORAS_TARBALL` to a different URL or to an absolute local file path. A URL is verified against the checksum file in the same directory. For a local file, set `PULUMI_DOCKER_CHECKSUMS` or `ORAS_CHECKSUMS` to a local checksum file, otherwise verification is skipped with a warning. The checksum file comes from the same host as the download, so this check detects corruption but not a compromised host.
 
-The plugin version is read from `scenarios/go.mod` (pulumi-docker v5.3.0), and a plugin you supply yourself must be that version.
+The plugin version is read from `infra/scenarios/go.mod` (pulumi-docker v5.3.0), and a plugin you supply yourself must be that version.
 
 The php-fpm base images that need PECL extensions are not built here, because the company has no PECL proxy. Build them outside and pull them through the Docker Hub proxy.
 
@@ -110,7 +114,7 @@ Both are on the Sync page of the web app.
 
 ## Cleanup before release
 
-Before exporting the VM for trainees, open the Cleanup page of the web app and type `CLEANUP`, or run `scripts/cleanup.sh` as `aps` (or root), which asks for the same confirmation. It deletes:
+Before exporting the VM for trainees, open the Cleanup page of the web app and type `CLEANUP`, or run `sudo ./cleanup.sh` as `aps` (or root), which asks for the same confirmation. It deletes:
 
 - every chall-manager instance, and leftover `challenge-*` containers and networks;
 - every CTFd user that is not an admin;
@@ -120,7 +124,7 @@ It keeps the challenges, the images in the registry, the git settings and the CT
 
 ## Create a challenge manually
 
-1. Build the challenge image and push it to the local registry, for example `docker build -t localhost:5000/challsmith/my-chall:v1 .` and `docker push localhost:5000/challsmith/my-chall:v1`. Run these as `aps` (or another docker group user). The `examples/` directory has working challenges.
+1. Build the challenge image and push it to the local registry, for example `docker build -t localhost:5000/challsmith/my-chall:v1 .` and `docker push localhost:5000/challsmith/my-chall:v1`. Run these as `aps` (or another docker group user). The `tests/e2e/fixtures/` directory has working challenges.
 2. In CTFd, go to Admin, then Challenges, then create a challenge of type `dynamic_iac`. Fill in name, category, description and points as usual.
 3. Set the scenario to `registry:5000/challsmith/scenarios/single:v1` or `registry:5000/challsmith/scenarios/multi:v1`.
 4. Add the `additional` keys from the tables below. The image in `image` or `services` is the one pushed in step 1, referenced as `localhost:5000/...`.
@@ -167,10 +171,10 @@ Every container gets the environment variable `FLAG`, for example `APS{php_strcm
 Unit tests for the scenarios, run in the same container image the build uses:
 
 ```
-docker run --rm -v "$PWD/scenarios:/src" -w /src golang:1.27-alpine go test ./...
+docker run --rm -v "$PWD/infra/scenarios:/src" -w /src golang:1.27-alpine go test ./...
 ```
 
-End-to-end tests run on the installed VM as `aps`. They build and push the images in `examples/`, create instances through the CTFd API, and drive the web app on port 3000 (create, edit, publish, republish, a failing build, login and Origin checks, backup and import preview). The runner reads `WEB_ADMIN_USER` and `WEB_ADMIN_PASSWORD` from `challsmith.env`. The cleanup test deletes every trainee and web session, so it runs last in its own pytest, and the runner then checks that no `challenge-*` container is left:
+End-to-end tests run on the installed VM as `aps`. They build and push the images in `tests/e2e/fixtures/`, create instances through the CTFd API, and drive the web app on port 3000 (create, edit, publish, republish, a failing build, login and Origin checks, backup and import preview). The runner reads `WEB_ADMIN_USER` and `WEB_ADMIN_PASSWORD` from `challsmith.env`. The cleanup test deletes every trainee and web session, so it runs last in its own pytest, and the runner then checks that no `challenge-*` container is left:
 
 ```
 tests/e2e/run.sh
@@ -186,7 +190,7 @@ sudo tests/ops-isolation.sh
 
 ## Known limitations
 
-1. After a VM reboot the instance containers come back, but Docker may assign a new host port (observed 32776 to 32768). CTFd still shows the old connection URL, so the trainee must delete the instance and open a new one.
+1. Instances do not survive a VM reboot or a Docker restart, on purpose. Docker may give a restarted container a new host port, which would leave CTFd showing a dead connection URL. So instance containers are created with restart policy `no`, and at boot and whenever Docker (re)starts, `challsmith-boot-reset.service` (installed and enabled by `install.sh`, script `infra/boot/reset-instances.sh`) waits up to five minutes for the api and chall-manager, then runs `cleanup.sh --instances-only --yes`: every chall-manager instance and leftover `challenge-*` container and network is deleted, while CTFd users and web sessions are kept. A trainee opens a new instance afterwards, and its flag changes. Right after boot, wait until the reset has finished (`systemctl status challsmith-boot-reset`) before opening instances, because one started during the reset may be deleted. A failure of the unit is logged in the journal (`journalctl -u challsmith-boot-reset`) and does not stop other services.
 2. php single-container challenges use `php -S`, which is single-threaded. That is fine for one trainee per VM.
 3. Anyone with the vmdk can get root. Dynamic flags only stop trainees from copying each other's flags. The writeup and the oral check are the real control.
 4. An import preview is kept in the api's memory for 30 minutes, so after the api restarts you must run the preview again.
@@ -212,7 +216,7 @@ The Pulumi logs are in the `cm-pulumi` volume, mounted at `/var/lib/pulumi` in c
 - Every published port binds to 127.0.0.1, so the services and instances are not reachable from the network.
 - The VM itself can reach the container networks, so `ops` is blocked by an nftables table `inet challsmith_ops` (`/etc/challsmith/ops-firewall.nft`, loaded at boot by `challsmith-ops-firewall.service`). It rejects all `ops` traffic into the Docker bridges (`docker0`, `br-*`, including the per-instance networks) and to the registry port 5000 and the web app port 3000 on loopback. `ops` still reaches CTFd on 127.0.0.1:8000 and the instance ports, which go through Docker's root-owned port proxy. Without this, `ops` could call the unauthenticated chall-manager API and read every instance flag, read the CTFd sessions in redis, or push a scenario to the registry that chall-manager would run with `docker.sock`.
 - The firewall fails closed: `challsmith-ops-firewall.service` expires the `ops` account before loading the rules and unlocks it only after they loaded, so `ops` cannot log in if the load fails (`aps` is not affected). Docker keeps the per-instance `challenge-*` networks apart from the compose network; `tests/ops-isolation.sh` verifies it.
-- Before exporting the VM, run the cleanup (see "Cleanup before release"). `scripts/cleanup.sh` runs the cleanup CLI in the `api` container and asks for confirmation.
+- Before exporting the VM, run the cleanup (see "Cleanup before release"). `sudo ./cleanup.sh` runs the cleanup CLI in the `api` container and asks for confirmation.
 - Web app login: one account from `challsmith.env`, checked in constant time. A session is a random token in an `HttpOnly`, `SameSite=Strict` cookie that lasts 12 hours, and only its BLAKE3 hash is stored, so the database cannot be used to log in. The browser talks only to `web`, which calls `api` for it, and `api` checks the session on every endpoint except login, so `web` is not the only guard. Writes need an `Origin` whose host equals the request's `Host`, and that `Host` must be in `WEB_ALLOWED_HOSTS` (a request with any other `Host` is refused), and the `/api/auth/*` routes cannot be reached from the browser.
 - `api` mounts `docker.sock`, so a login to the web app is root-equivalent on the VM. The firewall therefore blocks `ops` from port 3000 as well, and if the firewall fails to load, the `ops` account stays expired.
 - The firewall relies on Docker's userland proxy (the default). With `"userland-proxy": false` in `daemon.json`, loopback traffic to published ports is routed into the bridges and `ops` loses CTFd too, so keep the default.

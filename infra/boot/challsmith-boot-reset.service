@@ -1,0 +1,14 @@
+[Unit]
+Description=challsmith: delete stale challenge instances after a reboot or a Docker restart
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/challsmith/infra/boot/reset-instances.sh
+TimeoutStartSec=900
+
+[Install]
+WantedBy=multi-user.target docker.service

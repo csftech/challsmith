@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 # Build the Go scenarios in a container and push them as OCI artifacts to the local registry.
-# Usage: scripts/push-scenarios.sh [tag]   (env: GOPROXY, GOSUMDB, HTTP_PROXY, HTTPS_PROXY, NO_PROXY, ORAS_BIN)
+# Usage: infra/scenarios/push.sh [tag]   (env: GOPROXY, GOSUMDB, HTTP_PROXY, HTTPS_PROXY, NO_PROXY, ORAS_BIN)
 set -euo pipefail
 
 TAG="${1:-v1}"
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SRC="$ROOT/scenarios"
+SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 mkdir -p "$SRC/bin/.cache"
 
 # Exception: the golang build container is a build step, not a challenge, so it may use the
