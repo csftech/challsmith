@@ -6,7 +6,7 @@
 
 **Architecture：** 一份設定檔 `images.yml` 列出每個 php 版本的 base tag、別名、要編譯的內建 extension，以及各 PECL extension 的固定版本。`scripts/matrix.py` 驗證設定並產生 GitHub Actions 的 build matrix，同一個 `php/Dockerfile` 以 build args 產生每個版本的 image。CI 先 build 並跑冒煙測試，只有在 `main` 上的 push 或手動觸發時才推送。
 
-**Tech Stack：** Docker（BuildKit）、GitHub Actions（`docker/setup-buildx-action`、`docker/login-action`、`docker/build-push-action`）、Python（`matrix.py` 與 pytest）、PyYAML、shell。
+**Tech Stack：** Docker（BuildKit）、mlocati/docker-php-extension-installer、GitHub Actions（`docker/setup-buildx-action`、`docker/login-action`、`docker/build-push-action`）、Python（`matrix.py` 與 pytest）、PyYAML、shell。
 
 **Spec：** `docs/superpowers/specs/2026-11-21-challsmith-design.md` 第 10 節。使用者在 2026-11-22 補充的決定：repo 名稱 `challsmith-base-images`；Docker Hub 帳號 `csftech`；php 版本 7.4、8.1、8.3、8.6；PECL extension 為 redis、mongodb、apcu、imagick；內建 extension 全部預裝；只做一種「全部都裝」的 image，不分標準版與完整版；image 名稱 `csftech/php-ext`。
 
@@ -155,9 +155,8 @@ challsmith-base-images/
 - Produces：
   - `php/Dockerfile` 的 build args：`BASE`（例如 `php:8.3.37-fpm-alpine3.24`）、`BUNDLED`（例如 `pdo_mysql gd ...`）與 `PECL_EXTENSIONS`（例如 `redis-6.3.0 mongodb-2.1.4 apcu-5.1.27 imagick-3.8.1`）。做法：
     - `FROM ${BASE}`。
-    - 先用 `docker-php-ext-configure` 設定需要參數的 extension，例如 gd 開啟 freetype、jpeg、webp，imap 開啟 kerberos 與 ssl（只在清單裡有 imap 的版本執行）；再用 `docker-php-ext-install -j$(nproc) ${BUNDLED}` 編譯全部內建 extension。各 extension 需要的 `-dev` 套件一律放進 `.build-deps`。
-    - 用 `apk add --virtual .build-deps` 安裝 `$PHPIZE_DEPS` 與各 extension 需要的 `-dev` 套件，然後 `pecl install ${PECL_EXTENSIONS}`，再對每個 extension 執行 `docker-php-ext-enable`。
-    - 用 `scanelf` 找出 `.so` 實際需要的執行期函式庫，以 `apk add --virtual .run-deps` 保留下來，再 `apk del .build-deps`，並清掉 pecl 的暫存檔。
+    - 用 `COPY --from=mlocati/php-extension-installer:<確切版本>@sha256:<digest> /usr/bin/install-php-extensions /usr/local/bin/` 取得 [docker-php-extension-installer](https://github.com/mlocati/docker-php-extension-installer)，版本與 digest 都固定。
+    - 一個步驟 `RUN install-php-extensions ${BUNDLED} ${PECL_EXTENSIONS}` 安裝全部 extension，PECL 用 `name-version` 固定版本。系統相依套件、configure 參數與 build 相依套件的清理都交給它處理，不自己寫 apk 與 scanelf。
     - 不改 `php-fpm` 的設定，例如不加 `clear_env`，那屬於題目自己的 Dockerfile。
     - 加上 OCI label：`org.opencontainers.image.source=https://github.com/csftech/challsmith-base-images`，以及 `org.opencontainers.image.description`。
   - `tests/check-bundled.sh <base> <bundled>`：在 base image 裡列出 `/usr/src/php/ext` 中可以用 `docker-php-ext-install` 編譯的 extension（先執行 `docker-php-source extract`），扣掉已經編譯在 base image 裡的（`php -m` 已經列出的）與排除清單，和 `<bundled>` 比對。兩邊不一致時，印出「base 有但設定沒列」和「設定有但 base 沒有」兩份清單，並以非 0 結束。
