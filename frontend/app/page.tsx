@@ -30,14 +30,15 @@ export default function Home() {
   const [del, setDel] = useState<Summary | null>(null);
   const search = useRef<HTMLInputElement>(null);
 
-  async function load() {
+  // refresh=true: a background refresh after a failed save, whose own failure must not hide the save error
+  async function load(refresh = false) {
     try {
       const r = await api<ListResponse>("/challenges");
       setItems(r.items);
       setCtfdOk(r.ctfd_ok);
       setNow(new Date());
     } catch (e) {
-      setError(errorText(e));
+      if (!refresh) setError(errorText(e));
     }
   }
 
@@ -64,16 +65,18 @@ export default function Home() {
     } catch {}
   }
 
-  // optimistic: show the new order, then reload from the server if saving fails
+  // optimistic: show the new order; on failure restore the previous one, then refresh from the server
   async function save(next: Group[]) {
+    const prev = items;
     setItems(next.flatMap((g) => g.items));
     setSaving(true);
     setError("");
     try {
       await api("/challenges/order", jsonInit("PUT", { order: flatten(next) }));
     } catch (e) {
+      setItems(prev);
       setError(errorText(e));
-      await load();
+      await load(true);
     } finally {
       setSaving(false);
     }
