@@ -43,3 +43,12 @@ def test_service_hash_scoped():
     f = {"services/app/x": b"1", "services/db/x": b"1"}
     assert service_hash(f, "app") == service_hash({**f, "services/db/x": b"2"}, "app")
     assert service_hash(f, "app") != service_hash({**f, "services/app/x": b"2"}, "app")
+
+
+def test_service_hash_is_blake3():
+    from blake3 import blake3
+
+    body = b"hi"
+    expected = blake3(b"\0F\0services/a/x\0" + b"2\0" + body).hexdigest()
+    assert service_hash({"services/a/x": body}, "a") == expected
+    assert len(expected) == 64

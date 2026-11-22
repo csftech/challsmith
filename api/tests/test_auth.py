@@ -1,4 +1,4 @@
-import hashlib
+from blake3 import blake3
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -57,7 +57,7 @@ def test_missing_and_garbage_token(client):
 
 def test_expired_token(client, db):
     token = login(client).json()["token"]
-    row = db.get(WebSession, hashlib.sha256(token.encode()).hexdigest())
+    row = db.get(WebSession, blake3(token.encode()).hexdigest())
     row.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
     db.commit()
     assert client.get("/auth/me", headers=bearer(token)).status_code == 401
@@ -72,7 +72,7 @@ def test_logout_invalidates_token(client):
 def test_token_not_stored_in_plaintext(client, db):
     token = login(client).json()["token"]
     rows = db.execute(text("SELECT token_hash FROM web_sessions")).scalars().all()
-    assert rows == [hashlib.sha256(token.encode()).hexdigest()]
+    assert rows == [blake3(token.encode()).hexdigest()]
     assert token not in rows
 
 

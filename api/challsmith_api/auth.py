@@ -1,4 +1,4 @@
-import hashlib
+from blake3 import blake3
 import hmac
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -23,7 +23,7 @@ class LoginBody(BaseModel):
 
 
 def _hash(token: str) -> str:
-    return hashlib.sha256(token.encode()).hexdigest()
+    return blake3(token.encode()).hexdigest()
 
 
 def _now() -> datetime:

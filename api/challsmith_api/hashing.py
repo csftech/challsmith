@@ -1,4 +1,4 @@
-import hashlib
+from blake3 import blake3
 import json
 
 from .challenge_format import ChallengeMeta
@@ -9,7 +9,7 @@ def _norm(data: bytes) -> bytes:
 
 
 def _digest(head: bytes, files: dict[str, bytes]) -> str:
-    h = hashlib.sha256(head)
+    h = blake3(head)
     for path in sorted(files):
         body = _norm(files[path])
         h.update(b"\0F\0" + path.encode() + b"\0" + str(len(body)).encode() + b"\0" + body)
