@@ -1,0 +1,2 @@
+# The ctfd image copies nothing from this context; keep the rendered setup.yaml (admin credentials) out.
+*
