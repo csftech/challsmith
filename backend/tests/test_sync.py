@@ -123,6 +123,17 @@ def test_invalid_folder_is_reported_not_fatal(api, db):
     assert items["c9"]["status"] == "invalid"  # folder name differs from challenge.yml slug
 
 
+def test_reserved_slug_is_invalid_at_preview(api, db):
+    make(api)
+    meta, files = challenge_schema.from_folder(folder_of(db))
+    data = archive_util.make_tar_gz({"order": challenge_schema.to_folder(meta.model_copy(update={"slug": "order"}), files)})
+    pv = archive_preview(api, data).json()
+    assert pv["items"] == [{"slug": "order", "status": "invalid", "error": "slug 'order' is reserved"}]
+    r = api.post("/sync/apply", json={"preview_id": pv["preview_id"], "decisions": {}})
+    assert r.status_code == 200 and r.json()["applied"] == []
+    assert db.scalar(select(Challenge).where(Challenge.slug == "order")) is None
+
+
 def test_unknown_preview_is_404(api):
     assert api.post("/sync/apply", json={"preview_id": "nope", "decisions": {}}).status_code == 404
 

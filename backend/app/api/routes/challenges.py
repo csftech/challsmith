@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, Request, Response, UploadFile
 from fastapi.concurrency import run_in_threadpool
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.clients import ctfd_client
@@ -13,8 +14,18 @@ router = APIRouter()
 
 
 @router.get("/challenges")
-def list_challenges(db: Session = Depends(get_session)):
-    return challenge_service.list_summaries(db)
+def list_challenges(db: Session = Depends(get_session), ctfd: ctfd_client.CtfdClient = Depends(get_ctfd_client)):
+    return challenge_service.list_summaries(db, ctfd)
+
+
+class OrderBody(BaseModel):
+    order: list[str]
+
+
+@router.put("/challenges/order")
+def put_order(body: OrderBody, db: Session = Depends(get_session), ctfd: ctfd_client.CtfdClient = Depends(get_ctfd_client)):
+    challenge_service.save_order(db, ctfd, body.order)
+    return {"ok": True}
 
 
 @router.post("/challenges")

@@ -1,4 +1,5 @@
 import json
+import logging
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
@@ -14,13 +15,15 @@ from app.repositories import challenge_repository, publish_run_repository
 from app.services import challenge_service, cleanup_service
 from app.services.errors import BadRequest, Conflict, NotFound
 
+logger = logging.getLogger(__name__)
+
 
 def mirror_ref(image: str, prefix: str) -> str:
     """Where an official image is copied to. Images already on the local registry are used as is."""
     if image.startswith(prefix.split("/")[0] + "/"):
         return image
     if "@" in image:
-        raise BadRequest(f"image {image!r}: digest references are not supported, use a tag")
+        raise BadRequest(f"image {image!r}: digest references are not supported, use a tag", code="digest_reference")
     if ":" not in image.rsplit("/", 1)[-1]:
         image += ":latest"
     return f"{prefix}/mirror/{image}"
@@ -51,12 +54,12 @@ def build_additional(meta: challenge_schema.ChallengeMeta, images: dict[str, str
     return s.scenario_multi, {"services": json.dumps(services), **common}
 
 
-def ctfd_payload(meta: challenge_schema.ChallengeMeta, scenario_ref: str, additional: dict[str, str]) -> dict:
+def ctfd_payload(meta: challenge_schema.ChallengeMeta, scenario_ref: str, additional: dict[str, str], position: int) -> dict:
     return {
         "name": meta.name, "category": meta.category, "description": meta.description,
         "type": "dynamic_iac", "function": "linear", "initial": meta.value, "minimum": meta.value, "decay": 0,
         "state": "visible" if meta.visible else "hidden", "scenario": scenario_ref, "additional": additional,
-        "mana_cost": meta.instance.mana, "timeout": meta.instance.timeout,
+        "mana_cost": meta.instance.mana, "timeout": meta.instance.timeout, "position": position,
     }
 
 
@@ -65,12 +68,12 @@ def start_run(db: Session, slug: str) -> int:
     cleanup_service.lock_gate(db)
     if cleanup_service.cleanup_running(db):
         db.rollback()
-        raise Conflict("the pre-release cleanup is running; publish again when it has finished")
+        raise Conflict("the pre-release cleanup is running; publish again when it has finished", code="cleanup_running")
     ch = challenge_repository.get_by_slug_for_update(db, slug)
     if ch is None:
         raise NotFound("challenge not found")
     if publish_run_repository.get_running(db, ch) is not None:
-        raise Conflict("a publish is already running for this challenge")
+        raise Conflict("a publish is already running for this challenge", code="publish_running")
     run = publish_run_repository.add_running(db, ch)
     db.commit()
     return run.id
@@ -79,7 +82,7 @@ def start_run(db: Session, slug: str) -> int:
 def get_run(db: Session, run_id: int) -> dict:
     run = publish_run_repository.get(db, run_id)
     if run is None:
-        raise NotFound("publish run not found")
+        raise NotFound("publish run not found", code="publish_run_not_found")
     return {"status": run.status, "log": run.log, "created_at": run.created_at, "finished_at": run.finished_at}
 
 
@@ -145,7 +148,9 @@ def run_publish(
             docker.push(tag, log)
             images[svc.name] = tag
         scenario_ref, additional = build_additional(meta, images)
-        payload = ctfd_payload(meta, scenario_ref, additional)
+        with db_factory() as s:  # re-read: the author may have reordered during the build
+            position = challenge_repository.get_by_slug(s, slug).position
+        payload = ctfd_payload(meta, scenario_ref, additional, position)
         if ctfd_id is not None:
             log(f"updating CTFd challenge {ctfd_id}")
             try:
@@ -160,6 +165,14 @@ def run_publish(
         ctfd.set_tags(ctfd_id, meta.tags)
         log(f"published as CTFd challenge {ctfd_id}")
         finish("succeeded", {"ctfd_id": ctfd_id, "published_hash": snapshot_hash})
+        try:  # the publish already succeeded: a failed position push must not turn it into a failed run
+            with db_factory() as s:
+                failed = challenge_service.push_positions(s, ctfd)
+            if failed:
+                raise RuntimeError("CTFd refused the position of: " + ", ".join(failed))
+        except Exception as e:
+            logger.warning("could not push CTFd positions: %s", e)
+            log(f"warning: could not push CTFd positions: {e}")
     except Exception as e:
         log(f"FAILED: {getattr(e, 'detail', None) or e}")
         finish("failed")

@@ -38,7 +38,7 @@ The two scenarios are written in Go (Go 1.27, pulumi-docker v5.3.0) and are buil
 You need an Ubuntu 26.04 Desktop VM with internet access, directly or through the company proxies.
 
 1. Copy the repository to the VM, then `cp challsmith.env.example challsmith.env` and edit it. The CTFd admin name, email and password are required, and so is `WEB_ADMIN_PASSWORD`, the password of the web app (`WEB_ADMIN_USER` is its user name, default `admin`). `CTFD_SECRET_KEY`, `CTFD_DB_PASSWORD` and `APP_DB_PASSWORD` (the web app's PostgreSQL) are generated when left empty. The web app signs in to CTFd with the CTFd admin account. `CM_MANA_TOTAL` is the per-user mana limit (default 0, unlimited; see below).
-2. Run `sudo ./install.sh`. It is safe to re-run. It installs Docker, writes the Docker daemon proxy settings, creates the users `aps` (docker group) and `ops` (an existing `ops` is removed from the docker, sudo, adm and lxd groups), installs the `ops` firewall, copies the repository to `/opt/challsmith`, starts the compose project, builds and pushes the scenarios, and installs Burp Suite (PortSwigger's merged installer, pinned by `BURP_VERSION` and verified by SHA-256). On first launch Burp asks whether to use Professional or Community; trainees choose Community (no licence needed). Installs from before this lived in `/opt/BurpSuiteCommunity`, which the installer leaves alone and you can delete.
+2. Run `sudo ./install.sh`. It is safe to re-run. It installs Docker, writes the Docker daemon proxy settings, creates the users `aps` (docker group) and `ops` (an existing `ops` is removed from the docker, sudo, adm and lxd groups), installs the `ops` firewall, copies the repository to `/opt/challsmith` (`frontend/` and `backend/` are mirrored exactly, so files removed from the repository are removed there too), starts the compose project, builds and pushes the scenarios, and installs Burp Suite (PortSwigger's merged installer, pinned by `BURP_VERSION` and verified by SHA-256). On first launch Burp asks whether to use Professional or Community; trainees choose Community (no licence needed). Installs from before this lived in `/opt/BurpSuiteCommunity`, which the installer leaves alone and you can delete.
 3. Set the passwords: `sudo passwd aps` and `sudo passwd ops`.
 4. Open `http://127.0.0.1:8000` and log in to CTFd with the admin account from `challsmith.env`. The web app is at `http://127.0.0.1:3000`, with `WEB_ADMIN_USER` and `WEB_ADMIN_PASSWORD`.
 
@@ -82,6 +82,13 @@ Open `http://127.0.0.1:3000` in the VM's browser and log in with `WEB_ADMIN_USER
 4. Read the publish log, which shows the docker output. If a build or push fails, publishing stops there, CTFd is not touched and the published version stays as it was.
 
 A challenge is `draft` (never published), `modified` (changed since the last publish) or `published`. Deleting a challenge also deletes its CTFd challenge and instances. Publishing a challenge whose CTFd challenge was deleted by hand creates a new one. Every instance gets its flag in the `FLAG` environment variable, see "How the image reads the flag".
+
+### The challenge list
+
+- Appearance: the top bar switches the language (`zh-TW` or `en`) and the theme (`signal`, `zinc`, `midnight`, `canvas` or `frost`). Both choices are remembered in cookies.
+- The list shows challenges grouped by category, as a table or as cards (the toggle is in the toolbar). You can filter by category and status, and search by name or slug with `/`.
+- Order: drag the grip of a challenge to move it within its category, or drag a category header to move the whole group. With the keyboard, focus a grip, press Space to pick it up, move with the arrow keys and press Space to drop. The new order is saved at once and written to the `position` of each published challenge in CTFd, so trainees see the same order. Dragging is off while a search or filter is active. To change the category of a challenge, edit it; it then goes to the end of the new category. If saving fails, or the list changed in another tab, the app shows an error and reloads the order from CTFd.
+- A new challenge goes to the end of the list. `order` is reserved and cannot be used as a slug.
 
 ### Templates
 
@@ -194,7 +201,7 @@ Unit tests for the scenarios, run in the same container image the build uses:
 docker run --rm -v "$PWD/infra/scenarios:/src" -w /src golang:1.27-alpine go test ./...
 ```
 
-End-to-end tests run on the installed VM as `aps`. They build and push the images in `tests/e2e/fixtures/`, create instances through the CTFd API, and drive the web app on port 3000 (create, edit, publish, republish, a failing build, login and Origin checks, backup and import preview). The runner reads `WEB_ADMIN_USER` and `WEB_ADMIN_PASSWORD` from `challsmith.env`. The cleanup test deletes every trainee and web session, so it runs last in its own pytest, and the runner then checks that no `challenge-*` container is left:
+End-to-end tests run on the installed VM as `aps`. They build and push the images in `tests/e2e/fixtures/`, create instances through the CTFd API, and drive the web app on port 3000 (create, edit, publish, republish, a failing build, login and Origin checks, backup and import preview, and that dragging the order reaches CTFd's `position` and the trainee challenge list). The runner reads `WEB_ADMIN_USER` and `WEB_ADMIN_PASSWORD` from `challsmith.env`. The cleanup test deletes every trainee and web session, so it runs last in its own pytest, and the runner then checks that no `challenge-*` container is left:
 
 ```
 tests/e2e/run.sh

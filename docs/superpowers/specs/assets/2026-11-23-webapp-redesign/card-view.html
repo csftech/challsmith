@@ -1,0 +1,80 @@
+<style>
+  .cv { background: #fff; color: #111; border: 1.5px solid #111; border-radius: 2px; padding: 16px; font-family: "IBM Plex Sans", "Noto Sans TC", system-ui, sans-serif; font-size: 12.5px; }
+  .cv svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .cv .bar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .cv .cnt { flex: 1; font-family: "IBM Plex Mono", monospace; font-size: 11px; }
+  .cv .seg { display: inline-flex; border: 1.5px solid #111; }
+  .cv .seg span { display: grid; place-items: center; width: 26px; height: 22px; } .cv .seg .on { background: #111; color: #fff; }
+  .cv .btn { background: #f5d90a; border: 1.5px solid #111; padding: 4px 10px; font-weight: 600; }
+  .cv .cat { display: flex; align-items: center; gap: 8px; font-family: "IBM Plex Mono", monospace; text-transform: uppercase; letter-spacing: .5px; font-size: 11px; font-weight: 600; padding: 6px 0; border-bottom: 1px solid #111; margin: 10px 0 10px; }
+  .cv .grip { opacity: .4; }
+  .cv .mono { font-family: "IBM Plex Mono", monospace; }
+  /* variant 1: info cards */
+  .cv .g1 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .cv .c1 { border: 1.5px solid #111; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; min-height: 128px; background: #fff; }
+  .cv .c1 .hd { display: flex; align-items: center; gap: 6px; }
+  .cv .c1 .nm { font-weight: 650; font-size: 13.5px; flex: 1; }
+  .cv .c1 .meta { display: flex; gap: 6px; flex-wrap: wrap; font-size: 11px; }
+  .cv .tag { border: 1px solid #111; padding: 0 6px; }
+  .cv .y { background: #f5d90a; }
+  .cv .c1 .ft { margin-top: auto; display: flex; align-items: center; gap: 6px; border-top: 1px solid #d6d4cc; padding-top: 8px; font-size: 11px; }
+  .cv .c1 .ft .pts { flex: 1; font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: 13px; }
+  .cv .ghost { border: 1.5px dashed #111; display: grid; place-items: center; min-height: 128px; opacity: .55; }
+  /* variant 2: CTFd-like tiles */
+  .cv .g2 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+  .cv .c2 { border: 1.5px solid #111; aspect-ratio: 1.25; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; position: relative; background: #fff; }
+  .cv .c2 .nm { font-weight: 650; font-size: 13px; }
+  .cv .c2 .pts { font-family: "IBM Plex Mono", monospace; font-size: 15px; font-weight: 600; }
+  .cv .c2 .gp { position: absolute; top: 5px; left: 5px; opacity: .4; }
+  .cv .c2 .st { position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border: 1px solid #111; }
+  .cv .c2.draft { background: repeating-linear-gradient(45deg, #fff, #fff 6px, #f4f3ef 6px, #f4f3ef 12px); }
+  .cv .legend { display: flex; gap: 14px; font-size: 11px; margin-top: 12px; align-items: center; }
+  .cv .legend i { display: inline-block; width: 8px; height: 8px; border: 1px solid #111; margin-right: 5px; vertical-align: -1px; }
+</style>
+
+<h2>卡片模式要長哪樣？</h2>
+<p class="subtitle">兩種都是 G 主題、依分類分組、可拖拉（⠿）。左上角的列表／卡片切換就是第 2 項需求的按鈕。點一下選擇。</p>
+
+<div class="options" id="o"></div>
+
+<script>
+const S = {
+  grip: '<svg viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg>',
+  list: '<svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
+  grid: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>',
+  edit: '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
+  up: '<svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
+  trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+};
+const data = [
+  ["Web", [["PHP-01","php-01","php",1,100,true,"2 小時前","#78"],["hello-php","hello-php","nginx-php-db",3,100,true,"昨天","#151"],["SQLi-02","sqli-02","nginx-php-db",3,150,false,"剛剛","—"]]],
+  ["Pwn", [["tcp-echo","tcp-echo","tcp",1,200,false,"3 天前","—"]]],
+];
+const bar = `<div class="bar"><span class="cnt">4 題 · 2 已發佈</span><span class="seg"><span>${S.list}</span><span class="on">${S.grid}</span></span><span class="btn">＋ 新增題目</span></div>`;
+function v1() {
+  let h = bar;
+  data.forEach(([c, items]) => {
+    h += `<div class="cat"><span class="grip">${S.grip}</span>${c} · ${items.length}</div><div class="g1">`;
+    items.forEach(r => h += `<div class="c1"><div class="hd"><span class="grip">${S.grip}</span><span class="nm">${r[0]}</span><span class="tag ${r[5]?"":"y"}">${r[5]?"已發佈":"未發佈"}</span></div>
+      <div class="mono" style="opacity:.6;font-size:11px">${r[1]} · CTFd ${r[7]}</div>
+      <div class="meta"><span class="tag">${r[2]}</span><span class="tag">${r[3]} 個服務</span></div>
+      <div class="ft"><span class="pts">${r[4]}</span><span style="opacity:.6">${r[6]}</span>${S.edit}${S.up}${S.trash}</div></div>`);
+    if (c === "Pwn") h += `<div class="ghost">拖到這裡</div>`;
+    h += `</div>`;
+  });
+  return `<div class="cv">${h}</div>`;
+}
+function v2() {
+  let h = bar;
+  data.forEach(([c, items]) => {
+    h += `<div class="cat"><span class="grip">${S.grip}</span>${c} · ${items.length}</div><div class="g2">`;
+    items.forEach(r => h += `<div class="c2 ${r[5]?"":"draft"}"><span class="gp">${S.grip}</span><span class="st" style="background:${r[5]?"#fff":"#f5d90a"}"></span><span class="nm">${r[0]}</span><span class="pts">${r[4]}</span></div>`);
+    h += `</div>`;
+  });
+  h += `<div class="legend"><span><i></i>已發佈</span><span><i style="background:#f5d90a"></i>未發佈（斜紋底）</span><span style="opacity:.6">點卡片開啟編輯器</span></div>`;
+  return `<div class="cv">${h}</div>`;
+}
+document.getElementById("o").innerHTML =
+  `<div class="option" data-choice="info" onclick="toggleSelect(this)"><div class="letter">1</div><div class="content" style="width:100%"><h3>資訊卡</h3><p>每張卡片放名稱、slug、CTFd id、範本、服務數、分數、更新時間和操作按鈕。一眼看完每題的狀況，一列三張。</p>${v1()}</div></div>` +
+  `<div class="option" data-choice="tile" onclick="toggleSelect(this)"><div class="letter">2</div><div class="content" style="width:100%"><h3>仿 CTFd 題目磚</h3><p>跟新人在 CTFd 看到的題目磚一樣，只有名稱和分數，一列五張。用來確認新人看到的排列，點卡片進編輯器。</p>${v2()}</div></div>`;
+</script>

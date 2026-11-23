@@ -60,6 +60,13 @@ class FakeCtfd:
     def delete_challenge(self, cid):
         self.deleted.append(cid)
 
+    def list_positions(self):
+        return {12: (1, 100)}  # the challenge create_challenge returns
+
+    def set_position(self, cid, position):
+        if getattr(self, "position_fail", False):
+            raise ctfd_client.CtfdError("positions down")
+
 
 def factory():
     return Session(get_engine())
@@ -223,6 +230,29 @@ def test_delete_refused_while_publish_running(api, db):
 def test_ctfd_payload_mana_cost(db):
     challenge_service.create_challenge(db, "p", "php", "P")
     meta = challenge_service.meta_of(db.scalar(select(Challenge)))
-    assert publish_service.ctfd_payload(meta, "ref", {})["mana_cost"] == 0
+    assert publish_service.ctfd_payload(meta, "ref", {}, 1)["mana_cost"] == 0
     meta.instance.mana = 2
-    assert publish_service.ctfd_payload(meta, "ref", {})["mana_cost"] == 2
+    assert publish_service.ctfd_payload(meta, "ref", {}, 1)["mana_cost"] == 2
+
+
+def test_publish_sends_current_position(db):
+    challenge_service.create_challenge(db, "a", "php", "A")
+    challenge_service.create_challenge(db, "b", "php", "B")
+    ch = db.scalar(select(Challenge).where(Challenge.slug == "b"))
+    ch.position = 7
+    db.commit()
+    run = publish_service.start_run(db, "b")
+    ctfd = FakeCtfd()
+    publish_service.run_publish(factory, run, "b", FakeDocker(), ctfd)
+    assert ctfd.created[0]["position"] == 7
+
+
+def test_position_push_failure_keeps_run_succeeded(db):
+    challenge_service.create_challenge(db, "c1", "php", "C")
+    run = publish_service.start_run(db, "c1")
+    ctfd = FakeCtfd()
+    ctfd.position_fail = True
+    publish_service.run_publish(factory, run, "c1", FakeDocker(), ctfd)
+    db.expire_all()
+    r = db.get(PublishRun, run)
+    assert r.status == "succeeded" and "warning: could not push CTFd positions" in r.log

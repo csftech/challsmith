@@ -24,7 +24,7 @@ app = FastAPI(title="challsmith", docs_url=None, redoc_url=None, openapi_url=Non
 @app.exception_handler(DomainError)
 def domain_error(_, e: DomainError):
     headers = {"WWW-Authenticate": "Bearer"} if e.status == 401 else None
-    return JSONResponse({"detail": e.detail}, status_code=e.status, headers=headers)
+    return JSONResponse({"detail": e.detail, "code": e.code}, status_code=e.status, headers=headers)
 
 
 app.include_router(auth.public)

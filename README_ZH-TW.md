@@ -38,7 +38,7 @@ Ubuntu 26.04 VM
 需要一台 Ubuntu 26.04 Desktop VM，能直接或經由公司 proxy 連上網路。
 
 1. 把 repo 複製到 VM，執行 `cp challsmith.env.example challsmith.env` 後編輯。CTFd 管理者的名稱、email 與密碼必填，web app 的密碼 `WEB_ADMIN_PASSWORD` 也必填（`WEB_ADMIN_USER` 是它的帳號，預設為 `admin`）。`CTFD_SECRET_KEY`、`CTFD_DB_PASSWORD` 與 `APP_DB_PASSWORD`（web app 的 PostgreSQL）留空時會自動產生。web app 以 CTFd 的管理者帳號登入 CTFd。`CM_MANA_TOTAL` 是每位使用者的 mana 上限，預設為 0，代表不限制（見下方說明）。
-2. 執行 `sudo ./install.sh`，可以重複執行。它會安裝 Docker、寫入 Docker daemon 的 proxy 設定、建立使用者 `aps`（docker 群組）與 `ops`（已存在的 `ops` 會被移出 docker、sudo、adm 與 lxd 群組）、安裝 `ops` 的防火牆、把 repo 複製到 `/opt/challsmith`、啟動 compose 專案、build 並推送 scenario，最後安裝 Burp Suite（PortSwigger 的合併版安裝程式，版本由 `BURP_VERSION` 固定，並以 SHA-256 驗證）。第一次開啟時，Burp 會讓使用者選擇 Professional 或 Community，新人選 Community 即可，不需要授權。舊版安裝在 `/opt/BurpSuiteCommunity`，安裝程式不會動它，可以自行刪除。
+2. 執行 `sudo ./install.sh`，可以重複執行。它會安裝 Docker、寫入 Docker daemon 的 proxy 設定、建立使用者 `aps`（docker 群組）與 `ops`（已存在的 `ops` 會被移出 docker、sudo、adm 與 lxd 群組）、安裝 `ops` 的防火牆、把 repo 複製到 `/opt/challsmith`（`frontend/` 與 `backend/` 會完全同步，repo 刪掉的檔案在那裡也會刪掉）、啟動 compose 專案、build 並推送 scenario，最後安裝 Burp Suite（PortSwigger 的合併版安裝程式，版本由 `BURP_VERSION` 固定，並以 SHA-256 驗證）。第一次開啟時，Burp 會讓使用者選擇 Professional 或 Community，新人選 Community 即可，不需要授權。舊版安裝在 `/opt/BurpSuiteCommunity`，安裝程式不會動它，可以自行刪除。
 3. 設定密碼：`sudo passwd aps` 與 `sudo passwd ops`。
 4. 開啟 `http://127.0.0.1:8000`，用 `challsmith.env` 裡的管理者帳號登入 CTFd。web app 在 `http://127.0.0.1:3000`，帳密是 `WEB_ADMIN_USER` 與 `WEB_ADMIN_PASSWORD`。
 
@@ -82,6 +82,13 @@ plugin 版本從 `infra/scenarios/go.mod` 讀取（pulumi-docker v5.3.0），自
 4. 查看發佈 log，裡面有 docker 的輸出。build 或 push 失敗時，發佈會停在那一步，不會動到 CTFd，已發佈的版本維持原樣。
 
 題目的狀態有 `draft`（從未發佈）、`modified`（上次發佈後有修改）與 `published`。刪除題目時，它在 CTFd 的題目與 instance 也會一併刪除，而如果 CTFd 上的題目被手動刪掉，再發佈時會建立新的題目。每個 instance 的 flag 都放在環境變數 `FLAG`，見「題目 image 怎麼讀 flag」。
+
+### 題目列表
+
+- 外觀：頂列可以切換語言（`zh-TW` 或 `en`）與主題（`signal`、`zinc`、`midnight`、`canvas` 或 `frost`），兩項選擇都記在 cookie 裡。
+- 題目依分類分組，可以用表格或資訊卡顯示（切換鈕在工具列）。可以依分類與狀態篩選，也可以按 `/` 以名稱或 slug 搜尋。
+- 順序：拖拉題目的把手，可以在同一個分類內移動，拖拉分類標題則會整組移動。用鍵盤時，先聚焦把手，按空白鍵拿起，用方向鍵移動，再按空白鍵放下。新順序會立刻儲存，並寫進 CTFd 中每個已發佈題目的 `position`，所以新人看到的順序也相同。搜尋或篩選時不能拖拉。要換題目的分類，請到編輯器修改，題目會移到新分類的最後面。儲存失敗，或是列表在另一個分頁被改過時，app 會顯示錯誤，並從 CTFd 重新載入順序。
+- 新題目排在列表最後面。`order` 是保留字，不能當作 slug。
 
 ### 範本
 
@@ -194,7 +201,7 @@ scenario 的單元測試，在 build 用的同一個 container image 裡執行�
 docker run --rm -v "$PWD/infra/scenarios:/src" -w /src golang:1.27-alpine go test ./...
 ```
 
-端對端測試在已安裝的 VM 上以 `aps` 執行，會先 build 並推送 `tests/e2e/fixtures/` 的 image，透過 CTFd API 建立 instance，並操作 3000 port 的 web app（建立、編輯、發佈、重新發佈、build 失敗、登入與 Origin 檢查、備份與匯入預覽）。執行程式會從 `challsmith.env` 讀取 `WEB_ADMIN_USER` 與 `WEB_ADMIN_PASSWORD`。清理測試會刪除所有新人與 web session，所以最後才以獨立的 pytest 執行，之後執行程式會檢查是否還有 `challenge-*` container 殘留：
+端對端測試在已安裝的 VM 上以 `aps` 執行，會先 build 並推送 `tests/e2e/fixtures/` 的 image，透過 CTFd API 建立 instance，並操作 3000 port 的 web app（建立、編輯、發佈、重新發佈、build 失敗、登入與 Origin 檢查、備份與匯入預覽，以及拖拉順序會寫到 CTFd 的 `position` 與新人的題目列表）。執行程式會從 `challsmith.env` 讀取 `WEB_ADMIN_USER` 與 `WEB_ADMIN_PASSWORD`。清理測試會刪除所有新人與 web session，所以最後才以獨立的 pytest 執行，之後執行程式會檢查是否還有 `challenge-*` container 殘留：
 
 ```
 tests/e2e/run.sh

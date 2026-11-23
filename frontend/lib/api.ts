@@ -1,11 +1,31 @@
+import messages from "../messages/zh-TW.json" with { type: "json" };
+
+// plain fields, not parameter properties: node --test strips types and cannot run those
 export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-    public detail?: unknown,
-  ) {
+  status: number;
+  detail?: unknown;
+  code?: string;
+  constructor(status: number, message: string, detail?: unknown, code?: string) {
     super(message);
+    this.status = status;
+    this.detail = detail;
+    this.code = code;
   }
+}
+
+// codes whose English detail carries the cause (git or docker output, the CTFd error, the bad field)
+const WITH_CAUSE = new Set(["sync_failed", "cleanup_failed", "cleanup_plan_failed", "ctfd_unreachable",
+  "ctfd_order_failed", "slug_reserved", "bad_gateway"]);
+
+// Translated text for a backend error code, else the raw message (backend detail stays English).
+export function errorText(e: unknown, t: (key: string, values?: Record<string, string>) => string): string {
+  const code = e instanceof ApiError ? e.code : undefined;
+  if (code && Object.hasOwn(messages.errors, code)) {
+    const text = t(`errors.${code}`);
+    const cause = (e as ApiError).message;
+    return (WITH_CAUSE.has(code) || code.startsWith("invalid_")) && cause ? `${text} (${cause})` : text;
+  }
+  return e instanceof Error ? e.message : String(e);
 }
 
 function message(detail: unknown, fallback: string): string {
@@ -22,11 +42,11 @@ export async function apiRaw(path: string, init?: RequestInit): Promise<Response
   const res = await fetch(`/api${path}`, init);
   if (res.status === 401) {
     window.location.href = "/login";
-    throw new ApiError(401, "登入已失效");
+    throw new ApiError(401, "unauthorized", undefined, "unauthorized");
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new ApiError(res.status, message(body.detail, `HTTP ${res.status}`), body.detail);
+    throw new ApiError(res.status, message(body.detail, `HTTP ${res.status}`), body.detail, body.code);
   }
   return res;
 }
@@ -50,7 +70,14 @@ export type Summary = {
   publish: "draft" | "published" | "modified";
   sync: "never" | "synced" | "modified";
   updated_at: string;
+  position: number;
+  ctfd_id: number | null;
+  ctfd_missing: boolean;
+  template: string | null;
+  services: number;
+  value: number;
 };
+export type ListResponse = { items: Summary[]; ctfd_ok: boolean };
 export type Template = { name: string; description: string; scenario: string };
 export type Service = {
   name: string;

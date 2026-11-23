@@ -37,7 +37,7 @@ def zipped(members: dict[str, bytes]) -> bytes:
 
 def test_create_list_get(api):
     assert make(api).status_code == 200
-    rows = api.get("/challenges").json()
+    rows = api.get("/challenges").json()["items"]
     assert len(rows) == 1
     r = rows[0]
     assert (r["slug"], r["name"], r["publish"], r["sync"]) == ("c1", "C One", "draft", "never")
@@ -59,20 +59,20 @@ def test_create_errors(api):
 def test_file_edit_roundtrip_bumps_updated_at(api):
     make(api)
     svc = folder_svc(api)
-    before = api.get("/challenges").json()[0]["updated_at"]
+    before = api.get("/challenges").json()["items"][0]["updated_at"]
     path = f"services/{svc}/Dockerfile"
     assert api.put(f"/challenges/c1/files/{path}", content=b"FROM x\r\n\0bin").status_code == 200
     assert api.get(f"/challenges/c1/files/{path}").content == b"FROM x\r\n\0bin"
-    assert api.get("/challenges").json()[0]["updated_at"] > before
+    assert api.get("/challenges").json()["items"][0]["updated_at"] > before
     assert api.put(f"/challenges/c1/files/services/{svc}/new/n.txt", content=b"n").status_code == 200
 
 
 def test_file_delete(api):
     make(api)
     path = f"services/{folder_svc(api)}/Dockerfile"
-    before = api.get("/challenges").json()[0]["updated_at"]
+    before = api.get("/challenges").json()["items"][0]["updated_at"]
     assert api.delete(f"/challenges/c1/files/{path}").status_code == 200
-    assert api.get("/challenges").json()[0]["updated_at"] > before
+    assert api.get("/challenges").json()["items"][0]["updated_at"] > before
     assert api.get(f"/challenges/c1/files/{path}").status_code == 404
     assert api.delete(f"/challenges/c1/files/{path}").status_code == 404
 
@@ -150,7 +150,7 @@ def test_status_published_then_modified(api, db):
     assert api.get("/challenges/c1").json()["status"]["publish"] == "modified"
     ch.sync_hash = "x"
     db.commit()
-    assert api.get("/challenges").json()[0]["sync"] == "modified"
+    assert api.get("/challenges").json()["items"][0]["sync"] == "modified"
 
 
 def test_delete_challenge(api, db):

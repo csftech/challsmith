@@ -1,4 +1,6 @@
-from fastapi import Depends, Header, HTTPException
+import functools
+
+from fastapi import Depends, Header
 from sqlalchemy.orm import Session
 
 from app.clients import chall_manager_client, ctfd_client, docker_client, registry_client
@@ -6,10 +8,7 @@ from app.core.config import get_settings
 from app.core.db import get_session
 from app.models import WebSession
 from app.services import auth_service
-
-
-def _unauthorized() -> HTTPException:
-    return HTTPException(401, "unauthorized", headers={"WWW-Authenticate": "Bearer"})
+from app.services.errors import Unauthorized
 
 
 def require_session(
@@ -18,10 +17,10 @@ def require_session(
 ) -> WebSession:
     scheme, _, token = (authorization or "").partition(" ")
     if scheme.lower() != "bearer" or not token:
-        raise _unauthorized()
+        raise Unauthorized()
     row = auth_service.validate_session(db, token)
     if row is None:
-        raise _unauthorized()
+        raise Unauthorized()
     return row
 
 
@@ -30,6 +29,7 @@ def get_docker_ops() -> docker_client.DockerOps:
     return docker_client.DockerOps(s.upstream_http_proxy, s.upstream_https_proxy, s.upstream_no_proxy)
 
 
+@functools.lru_cache  # one logged-in session per process: CTFd throttles logins
 def get_ctfd_client() -> ctfd_client.CtfdClient:
     s = get_settings()
     return ctfd_client.CtfdClient(s.ctfd_url, s.ctfd_admin_name, s.ctfd_admin_password)

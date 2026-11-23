@@ -1,9 +1,11 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
-import { Nav } from "@/app/nav";
+import { Shell } from "@/components/shell";
 import { api, ApiError, jsonInit } from "@/lib/api";
+import { useErrorText } from "@/lib/errors";
 
 type Git = {
   remote_url: string;
@@ -18,28 +20,17 @@ type Item = { slug: string; status: string; error?: string };
 type Preview = { preview_id: string; items: Item[] };
 type Exported = { commit: string | null; pushed: boolean; error: string | null };
 
-const STATUS: Record<string, string> = {
-  new: "新題目",
-  unchanged: "沒有變動",
-  source_changed: "只有來源改過",
-  db_changed: "只有資料庫改過",
-  conflict: "衝突",
-  invalid: "格式錯誤",
-};
-const FIELDS: [keyof Git, string][] = [
-  ["remote_url", "遠端網址"],
-  ["username", "使用者名稱"],
-  ["branch", "分支"],
-  ["dir", "資料夾"],
-  ["author_name", "作者名稱"],
-  ["author_email", "作者 email"],
-];
-const PUSH_HINT = "公司內無法 push 到外部時，請改用下載備份";
+const STATUS = ["new", "unchanged", "source_changed", "db_changed", "conflict", "invalid"] as const;
+const FIELDS = ["remote_url", "username", "branch", "dir", "author_name", "author_email"] as const;
 
 export default function Sync() {
+  const t = useTranslations("sync");
+  const nav = useTranslations("nav");
+  const errorText = useErrorText();
   const [git, setGit] = useState<Git | null>(null);
   const [token, setToken] = useState("");
   const [gitMsg, setGitMsg] = useState("");
+  const [gitOk, setGitOk] = useState(false);
   const [push, setPush] = useState(true);
   const [exp, setExp] = useState<Exported | null>(null);
   const [expErr, setExpErr] = useState("");
@@ -47,9 +38,10 @@ export default function Sync() {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [decisions, setDecisions] = useState<Record<string, "source" | "db">>({});
   const [msg, setMsg] = useState("");
+  const [msgOk, setMsgOk] = useState(false);
 
   useEffect(() => {
-    api<Git>("/settings/git").then(setGit, (e) => setGitMsg(e.message));
+    api<Git>("/settings/git").then(setGit, (e) => setGitMsg(errorText(e)));
   }, []);
 
   async function run<T>(fn: () => Promise<T>, onErr: (m: string) => void): Promise<T | undefined> {
@@ -57,7 +49,7 @@ export default function Sync() {
     try {
       return await fn();
     } catch (e) {
-      onErr((e as Error).message);
+      onErr(errorText(e));
     } finally {
       setBusy(false);
     }
@@ -66,6 +58,7 @@ export default function Sync() {
   async function save() {
     if (!git) return;
     setGitMsg("");
+    setGitOk(false);
     const saved = await run(
       () => api<Git>("/settings/git", jsonInit("PUT", { ...git, token: token || null })),
       setGitMsg,
@@ -73,7 +66,8 @@ export default function Sync() {
     if (saved) {
       setGit(saved);
       setToken("");
-      setGitMsg("已儲存");
+      setGitMsg(t("saved"));
+      setGitOk(true);
     }
   }
 
@@ -86,6 +80,7 @@ export default function Sync() {
 
   async function load(fn: () => Promise<Preview>) {
     setMsg("");
+    setMsgOk(false);
     setPreview(null);
     setDecisions({});
     const p = await run(fn, setMsg);
@@ -101,6 +96,7 @@ export default function Sync() {
   async function apply() {
     if (!preview) return;
     setMsg("");
+    setMsgOk(false);
     setBusy(true);
     try {
       const r = await api<{ applied: string[] }>(
@@ -108,11 +104,12 @@ export default function Sync() {
         jsonInit("POST", { preview_id: preview.preview_id, decisions }),
       );
       setPreview(null);
-      setMsg(`已套用 ${r.applied.length} 題`);
+      setMsg(t("applied", { n: r.applied.length }));
+      setMsgOk(true);
     } catch (e) {
       const s = e instanceof ApiError ? e.status : 0;
       setMsg(
-        s === 409 ? "資料已變動，請重新預覽" : s === 404 ? "預覽已過期，請重新預覽" : (e as Error).message,
+        s === 409 ? t("changed") : s === 404 ? t("expired") : errorText(e),
       );
     } finally {
       setBusy(false);
@@ -123,19 +120,15 @@ export default function Sync() {
   const ready = conflicts.every((i) => decisions[i.slug]);
 
   return (
-    <>
-      <header className="bar">
-        <h1>同步</h1>
-        <Nav />
-      </header>
-      <main className="stack">
+    <Shell title={nav("sync")}>
+      <div className="stack">
         <section className="panel">
-          <h2>git 設定</h2>
+          <h2>{t("gitSettings")}</h2>
           {git && (
             <>
-              {FIELDS.map(([k, label]) => (
+              {FIELDS.map((k) => (
                 <div key={k}>
-                  <label htmlFor={k}>{label}</label>
+                  <label htmlFor={k}>{t(`field.${k}`)}</label>
                   <input
                     id={k}
                     size={40}
@@ -145,7 +138,7 @@ export default function Sync() {
                 </div>
               ))}
               <label htmlFor="token">
-                存取權杖（token）{git.token_set ? "：已設定，留空代表不變" : "：尚未設定"}
+                {t("token")}{git.token_set ? t("tokenSet") : t("tokenUnset")}
               </label>
               <input
                 id="token"
@@ -155,37 +148,37 @@ export default function Sync() {
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
               />
-              <div className="row" style={{ marginTop: 8 }}>
+              <div className="row">
                 <button className="primary" onClick={save} disabled={busy}>
-                  儲存設定
+                  {t("saveSettings")}
                 </button>
               </div>
             </>
           )}
-          {gitMsg && <div className="error">{gitMsg}</div>}
+          {gitMsg && <div className={gitOk ? "note-ok" : "error"}>{gitMsg}</div>}
         </section>
 
         <section className="panel">
-          <h2>匯出到 git</h2>
+          <h2>{t("exportTitle")}</h2>
           <div className="row">
             <label className="inline">
               <input type="checkbox" checked={push} onChange={(e) => setPush(e.target.checked)} />
-              匯出後 push
+              {t("pushAfter")}
             </label>
             <button onClick={doExport} disabled={busy}>
-              匯出到 git
+              {t("export")}
             </button>
           </div>
           {exp && (
             <>
               <p>
-                commit：{exp.commit ?? "沒有新的變動"}；push：{exp.pushed ? "成功" : "未 push"}
+                {t("result", { commit: exp.commit ?? t("noChanges"), push: exp.pushed ? t("pushed") : t("notPushed") })}
               </p>
               {exp.error && (
                 <div className="error">
                   {exp.error}
                   {"\n"}
-                  {PUSH_HINT}
+                  {t("pushHint")}
                 </div>
               )}
             </>
@@ -194,19 +187,19 @@ export default function Sync() {
             <div className="error">
               {expErr}
               {"\n"}
-              {PUSH_HINT}
+              {t("pushHint")}
             </div>
           )}
         </section>
 
         <section className="panel">
-          <h2>匯入</h2>
+          <h2>{t("importTitle")}</h2>
           <div className="row">
             <button onClick={() => load(() => api<Preview>("/sync/git/preview", { method: "POST" }))} disabled={busy}>
-              從 git 匯入
+              {t("fromGit")}
             </button>
             <label className="inline">
-              上傳備份（.tar.gz）
+              {t("uploadArchive")}
               <input
                 type="file"
                 accept=".gz,.tgz,application/gzip"
@@ -221,12 +214,12 @@ export default function Sync() {
           </div>
           {preview && (
             <>
-              <table style={{ marginTop: 12 }}>
+              <table className="gap">
                 <thead>
                   <tr>
-                    <th>slug</th>
-                    <th>狀態</th>
-                    <th>處理</th>
+                    <th>{t("colSlug")}</th>
+                    <th>{t("colStatus")}</th>
+                    <th>{t("colAction")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -234,20 +227,20 @@ export default function Sync() {
                     <tr key={i.slug}>
                       <td>{i.slug}</td>
                       <td>
-                        {STATUS[i.status] ?? i.status}
+                        {(STATUS as readonly string[]).includes(i.status) ? t(`status.${i.status as (typeof STATUS)[number]}`) : i.status}
                         {i.error && <div className="error">{i.error}</div>}
                       </td>
                       <td>
                         {i.status === "conflict" &&
                           (["db", "source"] as const).map((d) => (
-                            <label key={d} className="inline" style={{ marginRight: 12 }}>
+                            <label key={d} className="inline choice">
                               <input
                                 type="radio"
                                 name={`d-${i.slug}`}
                                 checked={decisions[i.slug] === d}
                                 onChange={() => setDecisions({ ...decisions, [i.slug]: d })}
                               />
-                              {d === "db" ? "保留資料庫版" : "採用來源版"}
+                              {d === "db" ? t("keepDb") : t("useSource")}
                             </label>
                           ))}
                       </td>
@@ -255,28 +248,28 @@ export default function Sync() {
                   ))}
                   {preview.items.length === 0 && (
                     <tr>
-                      <td colSpan={3}>沒有題目</td>
+                      <td colSpan={3}>{t("noChallenges")}</td>
                     </tr>
                   )}
                 </tbody>
               </table>
-              <div className="row" style={{ marginTop: 8 }}>
+              <div className="row gap">
                 <button className="primary" onClick={apply} disabled={busy || !ready}>
-                  套用
+                  {t("apply")}
                 </button>
               </div>
             </>
           )}
-          {msg && <div className="error">{msg}</div>}
+          {msg && <div className={msgOk ? "note-ok" : "error"}>{msg}</div>}
         </section>
 
         <section className="panel">
-          <h2>備份</h2>
+          <h2>{t("backupTitle")}</h2>
           <a className="btn" href="/api/backup">
-            下載備份
+            {t("download")}
           </a>
         </section>
-      </main>
-    </>
+      </div>
+    </Shell>
   );
 }

@@ -18,11 +18,23 @@ def slug_exists(db: Session, slug: str) -> bool:
 
 
 def list_all(db: Session) -> list[Challenge]:
-    return list(db.scalars(select(Challenge).order_by(Challenge.slug)))
+    return list(db.scalars(select(Challenge).order_by(Challenge.position, Challenge.id)))
+
+
+def next_position(db: Session) -> int:
+    return (db.scalar(select(func.max(Challenge.position))) or 0) + 1
+
+
+def set_positions(db: Session, order: list[str]) -> None:
+    """Number the given slugs 1..N in order. A reorder is not an edit: only moved rows are written, updated_at kept."""
+    have = dict(db.execute(select(Challenge.slug, Challenge.position)).all())
+    for pos, slug in enumerate(order, 1):
+        if have.get(slug) != pos:
+            update_by_slug(db, slug, {"position": pos, "updated_at": Challenge.updated_at})
 
 
 def add(db: Session, slug: str, meta: dict, files: dict[str, bytes]) -> Challenge:
-    ch = Challenge(slug=slug, meta=meta)
+    ch = Challenge(slug=slug, meta=meta, position=next_position(db))
     db.add(ch)
     db.flush()  # the files need ch.id
     db.add_all(ChallengeFile(challenge_id=ch.id, path=p, content=c) for p, c in files.items())

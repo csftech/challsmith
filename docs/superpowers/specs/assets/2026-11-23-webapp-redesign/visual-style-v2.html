@@ -1,0 +1,160 @@
+<style>
+  .m { border-radius: 12px; overflow: hidden; display: flex; height: 430px; font-family: "Inter", "Noto Sans TC", system-ui, sans-serif; font-size: 12.5px; line-height: 1.4; }
+  .m svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+  .m .side { width: 168px; flex-shrink: 0; display: flex; flex-direction: column; padding: 12px 10px; }
+  .m .brand { display: flex; align-items: center; gap: 8px; font-weight: 650; padding: 4px 8px 14px; font-size: 13px; }
+  .m .logo { width: 20px; height: 20px; border-radius: 5px; display: grid; place-items: center; font-size: 11px; font-weight: 700; }
+  .m .grp { font-size: 10.5px; padding: 10px 8px 4px; opacity: .55; }
+  .m .nav { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; margin-bottom: 1px; }
+  .m .foot { margin-top: auto; display: flex; align-items: center; gap: 8px; padding: 8px; font-size: 12px; }
+  .m .av { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; font-weight: 600; }
+  .m .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .m .top { height: 42px; display: flex; align-items: center; gap: 10px; padding: 0 16px; }
+  .m .crumb { flex: 1; display: flex; gap: 6px; align-items: center; }
+  .m .kbd { font-size: 10px; padding: 0 5px; border-radius: 4px; }
+  .m .search { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 7px; width: 170px; }
+  .m .ib { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; }
+  .m .body { flex: 1; padding: 14px 16px; overflow: hidden; }
+  .m .panel { border-radius: 10px; overflow: hidden; }
+  .m .bar { display: flex; align-items: center; gap: 8px; padding: 10px 12px; }
+  .m .sel { display: flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 7px; }
+  .m .cnt { font-size: 11.5px; opacity: .6; flex: 1; }
+  .m .seg { display: inline-flex; padding: 2px; border-radius: 7px; }
+  .m .seg span { display: grid; place-items: center; width: 26px; height: 22px; border-radius: 5px; }
+  .m .btn { display: flex; align-items: center; gap: 5px; padding: 6px 10px; border-radius: 7px; font-weight: 600; }
+  .m .thead, .m .tr { display: grid; grid-template-columns: 18px 34px 1.6fr 1fr 60px 84px 92px 76px; align-items: center; gap: 8px; padding: 0 12px; }
+  .m .thead { height: 32px; font-size: 11.5px; font-weight: 600; }
+  .m .tr { height: 40px; }
+  .m .cat { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px; font-size: 11.5px; font-weight: 650; }
+  .m .grip { opacity: .4; }
+  .m .id { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; opacity: .6; }
+  .m .name { font-weight: 550; }
+  .m .slug { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; opacity: .55; margin-left: 6px; font-weight: 400; }
+  .m .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .m .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 2px 8px; border-radius: 999px; justify-self: start; }
+  .m .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .m .acts { display: flex; gap: 2px; justify-content: flex-end; }
+  .m .acts span { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; opacity: .65; }
+  .m .chip { font-size: 11px; padding: 1px 7px; border-radius: 5px; justify-self: start; }
+
+  /* D — neutral zinc, close to the reference's fidelity */
+  .D { background: #fafafa; color: #18181b; border: 1px solid #e4e4e7; }
+  .D .side { background: #fafafa; border-right: 1px solid #ececee; } .D .logo { background: #18181b; color: #fff; }
+  .D .nav { color: #52525b; } .D .nav.on { background: #f0f0f2; color: #18181b; font-weight: 600; }
+  .D .av { background: #e4e4e7; } .D .top { border-bottom: 1px solid #ececee; background: #fff; }
+  .D .search, .D .sel { border: 1px solid #e4e4e7; background: #fff; color: #71717a; } .D .kbd { background: #f4f4f5; border: 1px solid #e4e4e7; }
+  .D .ib { border: 1px solid #e4e4e7; } .D .main { background: #fff; }
+  .D .panel { border: 1px solid #e4e4e7; } .D .bar { border-bottom: 1px solid #f0f0f2; }
+  .D .seg { background: #f4f4f5; } .D .seg .on { background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+  .D .btn { background: #18181b; color: #fff; } .D .thead { color: #71717a; border-bottom: 1px solid #f0f0f2; }
+  .D .cat { background: #fafafa; color: #52525b; border-bottom: 1px solid #f0f0f2; } .D .tr { border-bottom: 1px solid #f4f4f5; }
+  .D .pub { background: #ecfdf3; color: #067647; border: 1px solid #abefc6; } .D .dr { background: #fffaeb; color: #b54708; border: 1px solid #fedf89; }
+  .D .chip { background: #f4f4f5; color: #3f3f46; }
+
+  /* E — near-black, cool blue accent */
+  .E { background: #0e0f11; color: #e6e7ea; border: 1px solid #23252a; }
+  .E .side { background: #0e0f11; border-right: 1px solid #1d1f23; } .E .logo { background: #4c8dff; color: #fff; }
+  .E .nav { color: #8b8f98; } .E .nav.on { background: #1a1c20; color: #f2f3f5; }
+  .E .av { background: #2a2d33; } .E .top { border-bottom: 1px solid #1d1f23; } .E .main { background: #121316; }
+  .E .search, .E .sel { background: #17191d; border: 1px solid #262930; color: #8b8f98; } .E .kbd { background: #23262c; color: #9ca0a8; }
+  .E .ib { border: 1px solid #262930; color: #a5a9b1; }
+  .E .panel { border: 1px solid #22252a; background: #141518; } .E .bar { border-bottom: 1px solid #1f2126; }
+  .E .seg { background: #1c1e22; } .E .seg .on { background: #2b2e35; }
+  .E .btn { background: #4c8dff; color: #fff; } .E .thead { color: #7d818a; border-bottom: 1px solid #1f2126; }
+  .E .cat { color: #8b8f98; background: #17181c; } .E .tr { border-bottom: 1px solid #1b1d21; }
+  .E .pub { background: rgba(52,199,123,.12); color: #5fd796; } .E .dr { background: rgba(240,180,70,.12); color: #f0b446; }
+  .E .chip { background: #1f2227; color: #b4b8c0; }
+
+  /* F — floating panels on a tinted canvas */
+  .F { background: #eef1f5; color: #1c2430; border: 1px solid #dde2ea; padding: 10px; gap: 10px; }
+  .F .side { background: #fff; border-radius: 10px; box-shadow: 0 1px 2px rgba(16,24,40,.06); } .F .logo { background: #e8eefc; color: #2f5bd3; }
+  .F .nav { color: #4b5565; } .F .nav.on { background: #eef3ff; color: #2f5bd3; font-weight: 600; }
+  .F .av { background: #e3e8ef; } .F .top { padding: 0 4px; } .F .body { padding: 6px 4px; }
+  .F .search, .F .sel { background: #fff; border: 1px solid #dde2ea; color: #697586; } .F .kbd { background: #eef1f5; }
+  .F .ib { background: #fff; border: 1px solid #dde2ea; }
+  .F .panel { background: #fff; box-shadow: 0 1px 2px rgba(16,24,40,.06); } .F .bar { border-bottom: 1px solid #eef1f5; }
+  .F .seg { background: #eef1f5; } .F .seg .on { background: #fff; color: #2f5bd3; }
+  .F .btn { background: #2f5bd3; color: #fff; } .F .thead { color: #697586; background: #f8fafc; }
+  .F .cat { color: #364152; } .F .tr { border-top: 1px solid #f1f3f7; }
+  .F .pub { background: #e7f6ec; color: #18794e; } .F .dr { background: #fdf1e3; color: #b25e09; }
+  .F .chip.web { background: #e8eefc; color: #2f5bd3; } .F .chip.pwn { background: #fbe9ee; color: #b4234d; }
+
+  /* G — technical, sharp edges, mono numerals, one signal-yellow */
+  .G { background: #f4f3ef; color: #111; border: 1.5px solid #111; border-radius: 4px; font-family: "IBM Plex Sans", "Noto Sans TC", system-ui, sans-serif; }
+  .G .side { background: #f4f3ef; border-right: 1.5px solid #111; } .G .logo { background: #111; color: #f5d90a; border-radius: 2px; }
+  .G .grp { opacity: 1; font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .5px; }
+  .G .nav { border-radius: 2px; } .G .nav.on { background: #111; color: #f4f3ef; }
+  .G .av { background: #f5d90a; border: 1.5px solid #111; } .G .top { border-bottom: 1.5px solid #111; background: #fff; }
+  .G .search, .G .sel, .G .ib { border: 1.5px solid #111; border-radius: 2px; background: #fff; } .G .kbd { border: 1px solid #111; border-radius: 2px; }
+  .G .main { background: #fff; } .G .panel { border: 1.5px solid #111; border-radius: 2px; } .G .bar { border-bottom: 1.5px solid #111; }
+  .G .seg { border: 1.5px solid #111; border-radius: 2px; padding: 0; } .G .seg span { border-radius: 0; } .G .seg .on { background: #111; color: #fff; }
+  .G .btn { background: #f5d90a; color: #111; border: 1.5px solid #111; border-radius: 2px; }
+  .G .thead { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; text-transform: uppercase; border-bottom: 1.5px solid #111; }
+  .G .cat { background: #f4f3ef; border-bottom: 1px solid #111; font-family: "IBM Plex Mono", monospace; text-transform: uppercase; letter-spacing: .5px; }
+  .G .tr { border-bottom: 1px solid #d6d4cc; } .G .num, .G .id { font-family: "IBM Plex Mono", monospace; }
+  .G .badge { border-radius: 2px; border: 1px solid #111; } .G .pub { background: #fff; } .G .dr { background: #f5d90a; }
+  .G .chip { border: 1px solid #111; border-radius: 2px; }
+</style>
+
+<h2>再多幾種方向：哪一張比較接近你要的感覺？</h2>
+<p class="subtitle">這次做得比較完整：搜尋列、篩選、表頭、圖示、操作按鈕都有，比較能看出實際的樣子。內容一樣是真實資料，依分類分組，⠿ 是拖拉把手。點一下就能選擇，也可以告訴我「D 的版面配 E 的顏色」這類組合。</p>
+
+<div class="options" id="opts"></div>
+
+<script>
+const I = {
+  grid: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
+  list: '<svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
+  flag: '<svg viewBox="0 0 24 24"><path d="M4 22V4a1 1 0 0 1 1-1h11l-2 4 2 4H5"/></svg>',
+  plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  git: '<svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="8" r="2.5"/><path d="M6 8.5v7M18 10.5c0 4-6 3-11 6"/></svg>',
+  broom: '<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>',
+  search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+  globe: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>',
+  moon: '<svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg>',
+  chev: '<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>',
+  grip: '<svg viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg>',
+  edit: '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
+  up: '<svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
+  trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+  side: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg>',
+};
+const rows = [
+  { cat: "Web", items: [["78","PHP-01","php-01","web",100,"pub","已發佈","2 小時前"],["151","hello-php","hello-php","web",100,"pub","已發佈","昨天"]] },
+  { cat: "Pwn", items: [["—","tcp-echo","tcp-echo","pwn",200,"dr","未發佈","3 天前"]] },
+];
+function shot(k) {
+  let t = "";
+  rows.forEach(g => {
+    t += `<div class="cat"><span class="grip">${I.grip}</span>${I.chev}${g.cat}<span style="opacity:.5;font-weight:400">${g.items.length}</span></div>`;
+    g.items.forEach(r => t += `<div class="tr"><span class="grip">${I.grip}</span><span class="id">${r[0]}</span><span class="name">${r[1]}<span class="slug">${r[2]}</span></span><span class="chip ${r[3]}">${r[3]==="web"?"Web":"Pwn"}</span><span class="num">${r[4]}</span><span class="badge ${r[5]}"><span class="dot"></span>${r[6]}</span><span style="opacity:.6">${r[7]}</span><span class="acts"><span>${I.edit}</span><span>${I.up}</span><span>${I.trash}</span></span></div>`);
+  });
+  return `<div class="m ${k}">
+    <div class="side">
+      <div class="brand"><span class="logo">cs</span>challsmith</div>
+      <div class="grp">出題</div>
+      <div class="nav on">${I.flag}題目</div><div class="nav">${I.plus}新增題目</div>
+      <div class="grp">系統</div>
+      <div class="nav">${I.git}Git 同步</div><div class="nav">${I.broom}發佈前清理</div>
+      <div class="foot"><span class="av">A</span>aps</div>
+    </div>
+    <div class="main">
+      <div class="top"><span class="ib">${I.side}</span><span class="crumb">題目</span>
+        <span class="search">${I.search}搜尋題目<span style="flex:1"></span><span class="kbd">/</span></span>
+        <span class="ib">${I.globe}</span><span class="ib">${I.moon}</span></div>
+      <div class="body"><div class="panel">
+        <div class="bar"><span class="sel">全部分類 ${I.chev}</span><span class="sel">全部狀態 ${I.chev}</span><span class="cnt">3 題 · 2 已發佈</span>
+          <span class="seg"><span class="on">${I.list}</span><span>${I.grid}</span></span><span class="btn">${I.plus}新增題目</span></div>
+        <div class="thead"><span></span><span>ID</span><span>名稱</span><span>分類</span><span class="num">分數</span><span>狀態</span><span>更新</span><span style="text-align:right">操作</span></div>
+        ${t}
+      </div></div>
+    </div></div>`;
+}
+const opts = [
+  ["d","D","中性灰階，貼近參考圖","鋅灰色系、白底、細邊框，帶點陰影的分段切換。跟參考圖同一類的現代 SaaS 風，最穩，也最不容易看膩。"],
+  ["e","E","近黑深色，冷藍重點","像 Linear 那種深色工作台：近黑底、低對比邊框、藍色主按鈕。專業感強，長時間盯著螢幕比較不累。"],
+  ["f","F","淡色畫布上的浮動面板","淡藍灰底，側欄和內容是兩塊白色圓角面板，分類用不同顏色的標籤區分。比 D 柔和、有層次。"],
+  ["g","G","工程感，直角與等寬數字","米白底、黑色粗框線、直角、等寬字體的數字與表頭，只用一個訊號黃。很有辨識度，完全不像範本。"],
+];
+document.getElementById("opts").innerHTML = opts.map(o => `<div class="option" data-choice="${o[0]}" onclick="toggleSelect(this)"><div class="letter">${o[1]}</div><div class="content" style="width:100%"><h3>${o[2]}</h3><p>${o[3]}</p>${shot(o[1])}</div></div>`).join("");
+</script>

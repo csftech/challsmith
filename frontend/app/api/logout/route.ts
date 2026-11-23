@@ -1,10 +1,8 @@
 import type { NextRequest } from "next/server";
 
-import { API_URL, COOKIE, guard, json } from "@/lib/bff";
+import { API_URL, COOKIE } from "@/server/config";
 
 export async function POST(req: NextRequest) {
-  const denied = guard(req);
-  if (denied) return denied;
   const token = req.cookies.get(COOKIE)?.value;
   if (token) {
     await fetch(`${API_URL}/auth/logout`, {
@@ -13,7 +11,8 @@ export async function POST(req: NextRequest) {
       cache: "no-store",
     }).catch(() => {}); // the cookie is cleared either way
   }
-  return json({ ok: true }, 200, {
-    "Set-Cookie": `${COOKIE}=; Max-Age=0; Path=/; HttpOnly; SameSite=Strict`,
+  return Response.json({ ok: true }, {
+    status: 200,
+    headers: { "Set-Cookie": `${COOKIE}=; Max-Age=0; Path=/; HttpOnly; SameSite=Strict` },
   });
 }

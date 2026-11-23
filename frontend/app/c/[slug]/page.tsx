@@ -12,6 +12,7 @@ import { nginx } from "@codemirror/legacy-modes/mode/nginx";
 import CodeMirror from "@uiw/react-codemirror";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
@@ -23,7 +24,8 @@ import {
   type Detail,
   type Meta,
 } from "@/lib/api";
-import { Nav } from "@/app/nav";
+import { Shell } from "@/components/shell";
+import { useErrorText } from "@/lib/errors";
 import { decode, encode, type Enc } from "@/lib/text";
 
 type SvcForm = { name: string; port: string; entry: boolean; useImage: boolean; image: string; env: string };
@@ -81,12 +83,32 @@ function langFor(path: string) {
   }
 }
 
+// CodeMirror is dark only in the midnight theme; the theme switcher changes this attribute
+function useCmTheme(): "light" | "dark" {
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+  useEffect(() => {
+    const el = document.documentElement;
+    const read = () => setTheme(el.dataset.theme === "midnight" ? "dark" : "light");
+    read();
+    const mo = new MutationObserver(read);
+    mo.observe(el, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => mo.disconnect();
+  }, []);
+  return theme;
+}
+
 export default function Editor() {
+  const t = useTranslations("editor");
+  const common = useTranslations("common");
+  const errorText = useErrorText();
+  const cmTheme = useCmTheme();
   const { slug } = useParams<{ slug: string }>();
   const [form, setForm] = useState<Form | null>(null);
   const [files, setFiles] = useState<Detail["files"]>([]);
   const [metaMsg, setMetaMsg] = useState("");
+  const [metaOk, setMetaOk] = useState(false); // metaMsg is a success note, not an error
   const [fileMsg, setFileMsg] = useState("");
+  const [fileOk, setFileOk] = useState(false);
   const [sel, setSel] = useState<string | null>(null);
   const [text, setText] = useState<string | null>(null); // null = binary / not loaded
   const [dirty, setDirty] = useState(false);
@@ -103,7 +125,7 @@ export default function Editor() {
   }, [slug]);
 
   useEffect(() => {
-    load().then((d) => { setForm(toForm(d.meta)); setSaved(JSON.stringify(toMeta(toForm(d.meta)))); }, (e) => setMetaMsg(e.message));
+    load().then((d) => { setForm(toForm(d.meta)); setSaved(JSON.stringify(toMeta(toForm(d.meta)))); }, (e) => setMetaMsg(errorText(e)));
   }, [load]);
 
   const unsaved = dirty || (form != null && JSON.stringify(toMeta(form)) !== saved);
@@ -115,7 +137,7 @@ export default function Editor() {
       const a = (e.target as Element).closest("a[href]");
       if (!a || a.getAttribute("target") === "_blank") return;
       const publish = a.getAttribute("href")?.endsWith("/publish");
-      if (publish ? (alert("有未儲存的修改，請先儲存再發佈"), true) : !confirm("有未儲存的修改，確定要離開？")) {
+      if (publish ? (alert(t("unsavedPublish")), true) : !confirm(t("unsavedLeave"))) {
         e.preventDefault();
         e.stopPropagation();
       }
@@ -128,7 +150,13 @@ export default function Editor() {
     };
   }, [unsaved]);
 
-  if (!form) return <main><div className="error">{metaMsg || "載入中…"}</div></main>;
+  if (!form) {
+    return (
+      <Shell title={slug}>
+        <div className={metaMsg ? "error" : "muted"}>{metaMsg || common("loading")}</div>
+      </Shell>
+    );
+  }
   const { meta, svcs } = form;
   const setMeta = (p: Partial<Meta>) => setForm({ ...form, meta: { ...meta, ...p } });
   const setSvc = (i: number, p: Partial<SvcForm>) =>
@@ -137,28 +165,31 @@ export default function Editor() {
 
   async function saveMeta(prune = false) {
     setMetaMsg("");
+    setMetaOk(false);
     try {
       await api(`/challenges/${slug}${prune ? "?prune=true" : ""}`, jsonInit("PUT", toMeta(form!)));
       const d = await load();
       setForm(toForm(d.meta));
       setSaved(JSON.stringify(toMeta(toForm(d.meta))));
-      setMetaMsg("已儲存");
+      setMetaMsg(t("saved"));
+      setMetaOk(true);
     } catch (e) {
       const orphans = e instanceof ApiError && e.status === 409 ? (e.detail as { orphans?: string[] })?.orphans : null;
       if (orphans) {
-        if (confirm(`這個變更會讓下列 service 檔案失去對應的 service，確認後會一併刪除：\n\n${orphans.join("\n")}`)) {
+        if (confirm(t("orphanConfirm", { list: orphans.join("\n") }))) {
           return saveMeta(true);
         }
-        setMetaMsg("已取消儲存");
+        setMetaMsg(t("saveCanceled"));
       } else {
-        setMetaMsg((e as Error).message);
+        setMetaMsg(errorText(e));
       }
     }
   }
 
   async function open(path: string) {
-    if (dirty && !confirm("目前的檔案尚未儲存，要放棄修改嗎？")) return;
+    if (dirty && !confirm(t("discardFile"))) return;
     setFileMsg("");
+    setFileOk(false);
     want.current = path;
     setSel(path);
     setDirty(false);
@@ -168,13 +199,13 @@ export default function Editor() {
       if (want.current !== path) return; // a newer open() superseded this one
       const d = decode(buf);
       if (!d) {
-        setFileMsg("這個檔案不是 UTF-8 文字或換行符號混用，無法在此編輯（避免改動未編輯的位元組）");
+        setFileMsg(t("notText"));
         return;
       }
       enc.current = d.enc;
       setText(d.text);
     } catch (e) {
-      if (want.current === path) setFileMsg((e as Error).message);
+      if (want.current === path) setFileMsg(errorText(e));
     }
   }
 
@@ -187,15 +218,17 @@ export default function Editor() {
         body: encode(text, enc.current) as BodyInit,
       });
       setDirty(false);
-      setFileMsg("已儲存");
+      setFileMsg(t("saved"));
+      setFileOk(true);
       await load();
     } catch (e) {
-      setFileMsg((e as Error).message);
+      setFileMsg(errorText(e));
+      setFileOk(false);
     }
   }
 
   async function addFile() {
-    const path = prompt("新檔案路徑（例如 services/web/app.py）");
+    const path = prompt(t("newPath"));
     if (!path) return;
     if (files.some((f) => f.path === path)) return open(path); // never truncate an existing file
     try {
@@ -203,12 +236,13 @@ export default function Editor() {
       await load();
       await open(path);
     } catch (e) {
-      setFileMsg((e as Error).message);
+      setFileMsg(errorText(e));
+      setFileOk(false);
     }
   }
 
   async function removeFile() {
-    if (sel == null || !confirm(`確定刪除 ${sel}？`)) return;
+    if (sel == null || !confirm(t("deleteFile", { path: sel }))) return;
     try {
       await apiRaw(fileUrl(slug, sel), { method: "DELETE" });
       want.current = null;
@@ -218,7 +252,8 @@ export default function Editor() {
       setFileMsg("");
       await load();
     } catch (e) {
-      setFileMsg((e as Error).message);
+      setFileMsg(errorText(e));
+      setFileOk(false);
     }
   }
 
@@ -228,7 +263,8 @@ export default function Editor() {
     if (!file) return;
     const svc = uploadSvc || folders[0];
     if (!svc) {
-      setFileMsg("沒有可上傳的 service 資料夾");
+      setFileMsg(t("noUploadDir"));
+      setFileOk(false);
       return;
     }
     const sub = uploadSub.trim().replace(/^\/+|\/+$/g, "");
@@ -239,44 +275,45 @@ export default function Editor() {
         method: "POST",
         body,
       });
-      setFileMsg(`已上傳 ${file.name}`);
+      setFileMsg(t("uploaded", { name: file.name }));
+      setFileOk(true);
       await load();
     } catch (err) {
-      setFileMsg((err as Error).message);
+      setFileMsg(errorText(err));
+      setFileOk(false);
     }
     input.value = "";
   }
 
   async function removeChallenge() {
-    if (!confirm(`確定刪除題目 ${slug}？這也會刪除 CTFd 上已發佈的題目。`)) return;
+    if (!confirm(t("deleteChallenge", { slug }))) return;
     try {
       await apiRaw(`/challenges/${slug}`, { method: "DELETE" });
       window.location.href = "/";
     } catch (e) {
-      setMetaMsg((e as Error).message);
+      setMetaMsg(errorText(e));
+      setMetaOk(false);
     }
   }
 
   return (
-    <>
-      <header className="bar">
-        <h1>{meta.name}（{slug}）</h1>
-        <Link className="btn primary" href={`/c/${slug}/publish`}>發佈</Link>
-        <Nav />
-      </header>
-      <main className="editor">
-        <section className="panel">
-          <label htmlFor="name">標題</label>
+    <Shell title={`${meta.name} (${slug})`}>
+      <div className="row">
+        <Link className="btn primary" href={`/c/${slug}/publish`}>{t("publish")}</Link>
+      </div>
+      <div className="editor">
+        <section className="panel form">
+          <label htmlFor="name">{t("name")}</label>
           <input id="name" value={meta.name} onChange={(e) => setMeta({ name: e.target.value })} />
-          <label htmlFor="cat">分類</label>
+          <label htmlFor="cat">{t("category")}</label>
           <input id="cat" value={meta.category} onChange={(e) => setMeta({ category: e.target.value })} />
-          <label htmlFor="tags">標籤（以逗號分隔）</label>
+          <label htmlFor="tags">{t("tags")}</label>
           <input id="tags" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} />
-          <label htmlFor="desc">描述（Markdown）</label>
+          <label htmlFor="desc">{t("description")}</label>
           <textarea id="desc" rows={8} value={meta.description} onChange={(e) => setMeta({ description: e.target.value })} />
           <div className="row">
             <div>
-              <label htmlFor="value">分數</label>
+              <label htmlFor="value">{t("value")}</label>
               <input id="value" type="number" min={1} value={meta.value} onChange={(e) => setMeta({ value: Number(e.target.value) })} />
             </div>
             <div>
@@ -287,14 +324,14 @@ export default function Editor() {
               </select>
             </div>
             <div>
-              <label htmlFor="protocol">協定</label>
+              <label htmlFor="protocol">{t("protocol")}</label>
               <select id="protocol" value={meta.protocol} onChange={(e) => setMeta({ protocol: e.target.value as Meta["protocol"] })}>
                 <option value="http">http</option>
                 <option value="tcp">tcp</option>
               </select>
             </div>
           </div>
-          <label>範本</label>
+          <label>{t("template")}</label>
           <input value={meta.template ?? ""} readOnly />
           <div className="row">
             <div>
@@ -302,108 +339,108 @@ export default function Editor() {
               <input id="flag" value={meta.flag} onChange={(e) => setMeta({ flag: e.target.value })} />
             </div>
             <div>
-              <label htmlFor="fp">flag 前綴</label>
+              <label htmlFor="fp">{t("flagPrefix")}</label>
               <input id="fp" value={meta.flag_prefix} onChange={(e) => setMeta({ flag_prefix: e.target.value })} size={8} />
             </div>
           </div>
-          <label>執行個體</label>
+          <label>{t("instance")}</label>
           <div className="row">
-            <label className="inline">逾時（秒）
-              <input type="number" min={1} style={{ width: 90 }} value={meta.instance.timeout}
+            <label className="inline">{t("timeout")}
+              <input className="w90" type="number" min={1} value={meta.instance.timeout}
                 onChange={(e) => setMeta({ instance: { ...meta.instance, timeout: Number(e.target.value) } })} />
             </label>
             <label className="inline">mana
-              <input type="number" min={0} style={{ width: 60 }} value={meta.instance.mana}
+              <input className="w60" type="number" min={0} value={meta.instance.mana}
                 onChange={(e) => setMeta({ instance: { ...meta.instance, mana: Number(e.target.value) } })} />
             </label>
-            <label className="inline">記憶體
-              <input style={{ width: 70 }} value={meta.instance.memory}
+            <label className="inline">{t("memory")}
+              <input className="w70" value={meta.instance.memory}
                 onChange={(e) => setMeta({ instance: { ...meta.instance, memory: e.target.value } })} />
             </label>
             <label className="inline">CPU
-              <input style={{ width: 60 }} value={meta.instance.cpus}
+              <input className="w60" value={meta.instance.cpus}
                 onChange={(e) => setMeta({ instance: { ...meta.instance, cpus: e.target.value } })} />
             </label>
           </div>
           <p>
             <label className="inline">
               <input type="checkbox" checked={meta.visible} onChange={(e) => setMeta({ visible: e.target.checked })} />
-              在 CTFd 上可見
+              {t("visible")}
             </label>
           </p>
 
-          <label>Services</label>
+          <label>{t("services")}</label>
           {svcs.map((s, i) => (
             <div className="svc" key={i}>
               <div className="row">
-                <input placeholder="名稱" value={s.name} size={12} onChange={(e) => setSvc(i, { name: e.target.value })} />
-                <input placeholder="port" type="number" style={{ width: 80 }} value={s.port} onChange={(e) => setSvc(i, { port: e.target.value })} />
+                <input placeholder={t("svcName")} value={s.name} size={12} onChange={(e) => setSvc(i, { name: e.target.value })} />
+                <input placeholder="port" type="number" className="w80" value={s.port} onChange={(e) => setSvc(i, { port: e.target.value })} />
                 <label className="inline">
                   <input type="radio" name="entry" checked={s.entry}
                     onChange={() => setForm({ ...form, svcs: svcs.map((x, j) => ({ ...x, entry: i === j })) })} />
-                  入口
+                  {t("entry")}
                 </label>
                 <label className="inline">
                   <input type="checkbox" checked={s.useImage} onChange={(e) => setSvc(i, { useImage: e.target.checked })} />
-                  現成 image
+                  {t("useImage")}
                 </label>
-                <button className="danger" onClick={() => setForm({ ...form, svcs: svcs.filter((_, j) => j !== i) })}>刪除</button>
+                <button className="danger" onClick={() => setForm({ ...form, svcs: svcs.filter((_, j) => j !== i) })}>{t("remove")}</button>
               </div>
               {s.useImage && (
-                <input placeholder="image（例如 mariadb:11）" style={{ width: "100%", marginTop: 6 }} value={s.image}
+                <input placeholder={t("imagePlaceholder")} className="full" value={s.image}
                   onChange={(e) => setSvc(i, { image: e.target.value })} />
               )}
-              <label>環境變數（每行 KEY=VALUE）</label>
+              <label>{t("env")}</label>
               <textarea rows={3} value={s.env} onChange={(e) => setSvc(i, { env: e.target.value })} />
             </div>
           ))}
           <button onClick={() => setForm({ ...form, svcs: [...svcs, { name: "", port: "", entry: false, useImage: false, image: "", env: "" }] })}>
-            新增 service
+            {t("addService")}
           </button>
 
-          {metaMsg && <div className={metaMsg === "已儲存" ? "" : "error"}>{metaMsg}</div>}
+          {metaMsg && <div className={metaOk ? "note-ok" : "error"}>{metaMsg}</div>}
           <p className="row">
-            <button className="primary" onClick={() => saveMeta()}>儲存題目資訊</button>
-            <button className="danger" onClick={removeChallenge}>刪除題目</button>
+            <button className="primary" onClick={() => saveMeta()}>{t("saveMeta")}</button>
+            <button className="danger" onClick={removeChallenge}>{t("removeChallenge")}</button>
           </p>
         </section>
 
         <section className="panel">
           <div className="row">
-            <button onClick={addFile}>新增檔案</button>
-            <button className="danger" disabled={sel == null} onClick={removeFile}>刪除檔案</button>
+            <button onClick={addFile}>{t("addFile")}</button>
+            <button className="danger" disabled={sel == null} onClick={removeFile}>{t("removeFile")}</button>
           </div>
           <div className="tree">
             {files.map((f) => (
               <div key={f.path} className={f.path === sel ? "sel" : ""} onClick={() => open(f.path)}
                 style={{ paddingLeft: 6 + 14 * (f.path.split("/").length - 1) }}>
                 {f.path}
-                <span style={{ color: "#8c959f" }}> ({f.size} B)</span>
+                <span className="muted"> ({f.size} B)</span>
               </div>
             ))}
           </div>
           <div className="row">
-            <span>上傳到</span>
+            <span>{t("uploadTo")}</span>
             <select value={uploadSvc || folders[0] || ""} onChange={(e) => setUploadSvc(e.target.value)}>
               {folders.map((n) => <option key={n} value={n}>services/{n}</option>)}
             </select>
-            <input placeholder="子資料夾（可留空）" value={uploadSub} onChange={(e) => setUploadSub(e.target.value)} />
+            <input placeholder={t("subfolder")} value={uploadSub} onChange={(e) => setUploadSub(e.target.value)} />
             <input type="file" onChange={upload} />
           </div>
-          <p style={{ fontSize: 13, color: "#57606a", margin: "4px 0" }}>上傳 .zip 會解壓縮到選定的資料夾。</p>
-          {fileMsg && <div className={fileMsg === "已儲存" || fileMsg.startsWith("已上傳") ? "" : "error"}>{fileMsg}</div>}
+          <p className="muted hint">{t("zipHint")}</p>
+          {fileMsg && <div className={fileOk ? "note-ok" : "error"}>{fileMsg}</div>}
           {sel != null && text != null && (
             <>
-              <div className="row" style={{ margin: "8px 0" }}>
+              <div className="row filebar">
                 <strong>{sel}</strong>
-                <button className="primary" disabled={!dirty} onClick={saveFile}>儲存檔案</button>
+                <button className="primary" disabled={!dirty} onClick={saveFile}>{t("saveFile")}</button>
               </div>
-              <CodeMirror key={sel} value={text} height="520px" extensions={langFor(sel)}
+              <CodeMirror key={sel} value={text} height="520px" theme={cmTheme} extensions={langFor(sel)}
                 onChange={(v) => { setText(v); setDirty(true); }} />
             </>
           )}
         </section>
-      </main>
-    </>
+      </div>
+    </Shell>
   );
 }

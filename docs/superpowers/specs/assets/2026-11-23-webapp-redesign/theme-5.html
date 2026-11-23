@@ -1,0 +1,162 @@
+<style>
+  .m { border-radius: 12px; overflow: hidden; display: flex; height: 430px; font-family: "Inter", "Noto Sans TC", system-ui, sans-serif; font-size: 12.5px; line-height: 1.4; }
+  .m svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+  .m .side { width: 168px; flex-shrink: 0; display: flex; flex-direction: column; padding: 12px 10px; }
+  .m .brand { display: flex; align-items: center; gap: 8px; font-weight: 650; padding: 4px 8px 14px; font-size: 13px; }
+  .m .logo { width: 20px; height: 20px; border-radius: 5px; display: grid; place-items: center; font-size: 11px; font-weight: 700; }
+  .m .grp { font-size: 10.5px; padding: 10px 8px 4px; opacity: .55; }
+  .m .nav { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; margin-bottom: 1px; }
+  .m .foot { margin-top: auto; display: flex; align-items: center; gap: 8px; padding: 8px; font-size: 12px; }
+  .m .av { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; font-weight: 600; }
+  .m .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .m .top { height: 42px; display: flex; align-items: center; gap: 10px; padding: 0 16px; }
+  .m .crumb { flex: 1; display: flex; gap: 6px; align-items: center; }
+  .m .kbd { font-size: 10px; padding: 0 5px; border-radius: 4px; }
+  .m .search { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 7px; width: 170px; }
+  .m .ib { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; }
+  .m .body { flex: 1; padding: 14px 16px; overflow: hidden; }
+  .m .panel { border-radius: 10px; overflow: hidden; }
+  .m .bar { display: flex; align-items: center; gap: 8px; padding: 10px 12px; }
+  .m .sel { display: flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 7px; }
+  .m .cnt { font-size: 11.5px; opacity: .6; flex: 1; }
+  .m .seg { display: inline-flex; padding: 2px; border-radius: 7px; }
+  .m .seg span { display: grid; place-items: center; width: 26px; height: 22px; border-radius: 5px; }
+  .m .btn { display: flex; align-items: center; gap: 5px; padding: 6px 10px; border-radius: 7px; font-weight: 600; }
+  .m .thead, .m .tr { display: grid; grid-template-columns: 18px 34px 1.6fr 1fr 60px 84px 92px 76px; align-items: center; gap: 8px; padding: 0 12px; }
+  .m .thead { height: 32px; font-size: 11.5px; font-weight: 600; }
+  .m .tr { height: 40px; }
+  .m .cat { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px; font-size: 11.5px; font-weight: 650; }
+  .m .grip { opacity: .4; }
+  .m .id { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; opacity: .6; }
+  .m .name { font-weight: 550; }
+  .m .slug { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; opacity: .55; margin-left: 6px; font-weight: 400; }
+  .m .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .m .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 2px 8px; border-radius: 999px; justify-self: start; }
+  .m .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .m .acts { display: flex; gap: 2px; justify-content: flex-end; }
+  .m .acts span { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; opacity: .65; }
+  .m .chip { font-size: 11px; padding: 1px 7px; border-radius: 5px; justify-self: start; }
+
+
+  /* H — warm dark, amber */
+  .H { background: #17140f; color: #ece4d6; border: 1px solid #2c261d; font-family: "IBM Plex Sans", "Noto Sans TC", system-ui, sans-serif; }
+  .H .side { background: #13110d; border-right: 1px solid #262119; } .H .logo { background: #e8a33d; color: #17140f; }
+  .H .nav { color: #a89c88; } .H .nav.on { background: #241f17; color: #f3c46b; }
+  .H .av { background: #2c261d; } .H .top { border-bottom: 1px solid #262119; } .H .main { background: #1a1712; }
+  .H .search, .H .sel { background: #201c15; border: 1px solid #332c21; color: #a89c88; } .H .kbd { background: #2c261d; color: #c9bba3; }
+  .H .ib { border: 1px solid #332c21; color: #c9bba3; }
+  .H .panel { border: 1px solid #2c261d; background: #1d1a14; } .H .bar { border-bottom: 1px solid #2a241b; }
+  .H .seg { background: #241f17; } .H .seg .on { background: #3a3224; color: #f3c46b; }
+  .H .btn { background: #e8a33d; color: #17140f; } .H .thead { color: #8f836f; border-bottom: 1px solid #2a241b; font-family: "IBM Plex Mono", monospace; font-size: 10.5px; }
+  .H .cat { color: #c9a25a; background: #201c15; font-family: "IBM Plex Mono", monospace; } .H .tr { border-bottom: 1px solid #241f17; }
+  .H .num, .H .id { font-family: "IBM Plex Mono", monospace; }
+  .H .pub { background: rgba(130,190,110,.13); color: #9fcf8a; } .H .dr { background: rgba(232,163,61,.15); color: #f0b65a; }
+  .H .chip { background: #2a241b; color: #d9cbb2; }
+
+  /* I — frost: cool light canvas, dark slate rail */
+  .I { background: #e9eef3; color: #2e3440; border: 1px solid #d3dbe4; }
+  .I .side { background: #2e3440; color: #d8dee9; } .I .brand { color: #eceff4; } .I .logo { background: #88c0d0; color: #2e3440; }
+  .I .nav { color: #aeb7c6; } .I .nav.on { background: #3b4252; color: #eceff4; box-shadow: inset 2px 0 0 #88c0d0; }
+  .I .av { background: #4c566a; color: #eceff4; } .I .top { background: #f4f7fa; border-bottom: 1px solid #dbe2ea; } .I .main { background: #f4f7fa; }
+  .I .search, .I .sel { background: #fff; border: 1px solid #d3dbe4; color: #616e88; } .I .kbd { background: #e5e9f0; }
+  .I .ib { background: #fff; border: 1px solid #d3dbe4; color: #4c566a; }
+  .I .panel { background: #fff; border: 1px solid #dde3ea; } .I .bar { border-bottom: 1px solid #e5e9f0; }
+  .I .seg { background: #e5e9f0; } .I .seg .on { background: #fff; color: #5e81ac; }
+  .I .btn { background: #5e81ac; color: #fff; } .I .thead { color: #616e88; background: #f6f8fb; border-bottom: 1px solid #e5e9f0; }
+  .I .cat { color: #4c566a; border-bottom: 1px solid #eceff4; } .I .tr { border-bottom: 1px solid #eef1f5; }
+  .I .pub { background: #e3f0e6; color: #4c7a55; } .I .dr { background: #f6ecd9; color: #946a1e; }
+  .I .chip { background: #e5e9f0; color: #4c566a; }
+
+  /* J — sage: soft green-gray, forest accent, rounded */
+  .J { background: #eef1ea; color: #1f2a22; border: 1px solid #d6ddd0; font-family: "Inter", "Noto Sans TC", system-ui, sans-serif; }
+  .J .side { background: #e4e9de; border-right: 1px solid #d3dbcc; } .J .logo { background: #2f6b4f; color: #eef1ea; border-radius: 50%; }
+  .J .nav { color: #4b5a4f; border-radius: 999px; padding-left: 12px; } .J .nav.on { background: #2f6b4f; color: #f3f6f0; }
+  .J .av { background: #cdd8c6; } .J .top { background: #f6f8f3; border-bottom: 1px solid #dfe5d9; } .J .main { background: #f6f8f3; }
+  .J .search, .J .sel { background: #fff; border: 1px solid #d6ddd0; border-radius: 999px; color: #627064; } .J .kbd { background: #eef1ea; }
+  .J .ib { background: #fff; border: 1px solid #d6ddd0; border-radius: 50%; }
+  .J .panel { background: #fff; border: 1px solid #dfe5d9; border-radius: 14px; } .J .bar { border-bottom: 1px solid #edf0ea; }
+  .J .seg { background: #eef1ea; border-radius: 999px; } .J .seg span { border-radius: 999px; } .J .seg .on { background: #2f6b4f; color: #fff; }
+  .J .btn { background: #2f6b4f; color: #fff; border-radius: 999px; } .J .thead { color: #627064; border-bottom: 1px solid #edf0ea; }
+  .J .cat { color: #2f6b4f; background: #f4f7f1; } .J .tr { border-bottom: 1px solid #f0f3ed; }
+  .J .pub { background: #e1efe3; color: #2f6b4f; } .J .dr { background: #f6ecd6; color: #8a6219; }
+  .J .chip { background: #edf1e8; color: #3d4b40; border-radius: 999px; }
+
+  /* K — high contrast, accessibility first */
+  .K { background: #fff; color: #000; border: 2px solid #000; font-family: "Inter", "Noto Sans TC", system-ui, sans-serif; font-size: 13.5px; }
+  .K .side { background: #fff; border-right: 2px solid #000; } .K .logo { background: #000; color: #fff; }
+  .K .grp { opacity: 1; font-weight: 700; } .K .nav { color: #000; font-weight: 500; } .K .nav.on { background: #0050d8; color: #fff; font-weight: 700; }
+  .K .av { background: #000; color: #fff; } .K .top { border-bottom: 2px solid #000; }
+  .K .search, .K .sel, .K .ib { border: 2px solid #000; color: #000; background: #fff; } .K .kbd { border: 1px solid #000; }
+  .K .main { background: #fff; } .K .panel { border: 2px solid #000; } .K .bar { border-bottom: 2px solid #000; }
+  .K .seg { border: 2px solid #000; padding: 0; } .K .seg span { border-radius: 0; } .K .seg .on { background: #000; color: #fff; }
+  .K .btn { background: #0050d8; color: #fff; outline: 2px solid #000; outline-offset: 1px; }
+  .K .thead { font-weight: 700; color: #000; border-bottom: 2px solid #000; } .K .cat { font-weight: 800; border-bottom: 1px solid #000; background: #f2f2f2; }
+  .K .tr { border-bottom: 1px solid #767676; } .K .grip, .K .id, .K .slug { opacity: 1; color: #3d3d3d; }
+  .K .tr:nth-of-type(4) { outline: 3px solid #0050d8; outline-offset: -3px; }
+  .K .pub { background: #fff; color: #00622f; border: 2px solid #00622f; font-weight: 700; } .K .dr { background: #fff; color: #8a3b00; border: 2px solid #8a3b00; font-weight: 700; }
+  .K .chip { border: 1px solid #000; }
+</style>
+
+
+<h2>第五種主題：挑一個</h2>
+<p class="subtitle">四個候選都和 D、E、F、G 明顯不同。版面和資料一樣，只換風格。點一下選擇，也可以說「H 但改成淺色」這類調整。</p>
+
+<div class="options" id="opts"></div>
+
+<script>
+const I = {
+  grid: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
+  list: '<svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
+  flag: '<svg viewBox="0 0 24 24"><path d="M4 22V4a1 1 0 0 1 1-1h11l-2 4 2 4H5"/></svg>',
+  plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  git: '<svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="8" r="2.5"/><path d="M6 8.5v7M18 10.5c0 4-6 3-11 6"/></svg>',
+  broom: '<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>',
+  search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+  globe: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>',
+  moon: '<svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg>',
+  chev: '<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>',
+  grip: '<svg viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg>',
+  edit: '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
+  up: '<svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
+  trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+  side: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg>',
+};
+const rows = [
+  { cat: "Web", items: [["78","PHP-01","php-01","web",100,"pub","已發佈","2 小時前"],["151","hello-php","hello-php","web",100,"pub","已發佈","昨天"]] },
+  { cat: "Pwn", items: [["—","tcp-echo","tcp-echo","pwn",200,"dr","未發佈","3 天前"]] },
+];
+function shot(k) {
+  let t = "";
+  rows.forEach(g => {
+    t += `<div class="cat"><span class="grip">${I.grip}</span>${I.chev}${g.cat}<span style="opacity:.5;font-weight:400">${g.items.length}</span></div>`;
+    g.items.forEach(r => t += `<div class="tr"><span class="grip">${I.grip}</span><span class="id">${r[0]}</span><span class="name">${r[1]}<span class="slug">${r[2]}</span></span><span class="chip ${r[3]}">${r[3]==="web"?"Web":"Pwn"}</span><span class="num">${r[4]}</span><span class="badge ${r[5]}"><span class="dot"></span>${r[6]}</span><span style="opacity:.6">${r[7]}</span><span class="acts"><span>${I.edit}</span><span>${I.up}</span><span>${I.trash}</span></span></div>`);
+  });
+  return `<div class="m ${k}">
+    <div class="side">
+      <div class="brand"><span class="logo">cs</span>challsmith</div>
+      <div class="grp">出題</div>
+      <div class="nav on">${I.flag}題目</div><div class="nav">${I.plus}新增題目</div>
+      <div class="grp">系統</div>
+      <div class="nav">${I.git}Git 同步</div><div class="nav">${I.broom}發佈前清理</div>
+      <div class="foot"><span class="av">A</span>aps</div>
+    </div>
+    <div class="main">
+      <div class="top"><span class="ib">${I.side}</span><span class="crumb">題目</span>
+        <span class="search">${I.search}搜尋題目<span style="flex:1"></span><span class="kbd">/</span></span>
+        <span class="ib">${I.globe}</span><span class="ib">${I.moon}</span></div>
+      <div class="body"><div class="panel">
+        <div class="bar"><span class="sel">全部分類 ${I.chev}</span><span class="sel">全部狀態 ${I.chev}</span><span class="cnt">3 題 · 2 已發佈</span>
+          <span class="seg"><span class="on">${I.list}</span><span>${I.grid}</span></span><span class="btn">${I.plus}新增題目</span></div>
+        <div class="thead"><span></span><span>ID</span><span>名稱</span><span>分類</span><span class="num">分數</span><span>狀態</span><span>更新</span><span style="text-align:right">操作</span></div>
+        ${t}
+      </div></div>
+    </div></div>`;
+}
+const opts = [
+  ["h","H","暖色深色，琥珀重點","炭褐底配琥珀色，數字與表頭用等寬字。和 E 一樣是深色，但偏暖、比較像夜裡的工作燈，不刺眼。"],
+  ["i","I","霧藍，深色側欄","冷調淡藍灰內容區，配深石板色側欄與冰藍重點（類似 Nord 配色）。淺色裡對比最舒服的一種。"],
+  ["j","J","鼠尾草綠，圓潤","柔和的灰綠底、森林綠重點，按鈕和導覽都是膠囊形。四種裡最放鬆、最不像工具的。"],
+  ["k","K","高對比，無障礙優先","純黑白、2px 粗框線、較大字級，焦點用醒目的藍框標出（第二列示範鍵盤焦點）。投影或視力不好時最清楚。"],
+];
+document.getElementById("opts").innerHTML = opts.map(o => `<div class="option" data-choice="${o[0]}" onclick="toggleSelect(this)"><div class="letter">${o[1]}</div><div class="content" style="width:100%"><h3>${o[2]}</h3><p>${o[3]}</p>${shot(o[1])}</div></div>`).join("");
+</script>
