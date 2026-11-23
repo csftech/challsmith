@@ -99,8 +99,8 @@ install -d -o aps -g aps -m 750 "$DEST"
 OLD_ENV=/dev/null; [ ! -f "$ENVF" ] || { OLD_ENV="$(mktemp)"; cp "$ENVF" "$OLD_ENV"; }
 rsync -a --chmod=o-rwx --exclude=.git --exclude=.env --exclude=.superpowers --exclude=infra/scenarios/bin "$SRC/" "$DEST/"
 # the image sources must match the repo exactly: drop files an older version left behind (both build with COPY . .)
-rsync -a --delete --chmod=o-rwx --exclude=node_modules --exclude=.next "$SRC/frontend/" "$DEST/frontend/"
-rsync -a --delete --chmod=o-rwx --exclude=__pycache__ --exclude=.pytest_cache "$SRC/backend/" "$DEST/backend/"
+rsync -a --delete --chmod=o-rwx --exclude=.git --exclude=.env --exclude=node_modules --exclude=.next "$SRC/frontend/" "$DEST/frontend/"
+rsync -a --delete --chmod=o-rwx --exclude=.git --exclude=.env --exclude=__pycache__ --exclude=.pytest_cache "$SRC/backend/" "$DEST/backend/"
 chown -R aps:aps "$DEST"
 chmod 750 "$DEST"
 chmod 600 "$ENVF"
